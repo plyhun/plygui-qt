@@ -1,0 +1,16 @@
+[package]
+name = "plygui-qt"
+version = "0.0.1"
+authors = ["Serhii Plyhun <snuk188@gmail.com>"]
+
+[lib]
+name = "plygui_qt"
+path = "src/lib.rs"
+
+[dependencies]
+plygui-api = {version = "0.0.1", path = "../plygui-api"}
+qt_core = {version = "*", path = "../qt_core"}
+qt_widgets = {version = "*", path = "../qt_widgets"}
+
+[features]
+markup = ["plygui-api/markup"]
