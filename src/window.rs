@@ -178,7 +178,7 @@ impl UiMember for Window {
 
 impl Drop for Window {
     fn drop(&mut self) {
-        
+        self.filter.clear();
     }
 }
 
