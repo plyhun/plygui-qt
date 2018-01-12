@@ -103,9 +103,6 @@ impl UiSingleContainer for Window {
 
 impl UiContainer for Window {
     fn find_control_by_id_mut(&mut self, id_: ids::Id) -> Option<&mut UiControl> {
-        /*if self.id() == id_ {
-			return Some(self);
-		} else*/
         if let Some(child) = self.child.as_mut() {
             if let Some(c) = child.is_container_mut() {
                 return c.find_control_by_id_mut(id_);
@@ -114,9 +111,6 @@ impl UiContainer for Window {
         None
     }
     fn find_control_by_id(&self, id_: ids::Id) -> Option<&UiControl> {
-        /*if self.id() == id_ {
-			return Some(self);
-		} else*/
         if let Some(child) = self.child.as_ref() {
             if let Some(c) = child.is_container() {
                 return c.find_control_by_id(id_);
@@ -193,16 +187,22 @@ impl_member_id!(MEMBER_ID_WINDOW);
 
 fn event_handler(object: &mut Object, event: &Event) -> bool {
 	unsafe {
-		if event.type_() == Type::Resize {
-			let ptr = object.property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
-			if ptr != 0 {
-				let window: &mut Window = ::std::mem::transmute(ptr);
-				println!("Resize {:?} = {:?}", event.type_(), window.size()); 
-			}
-			let cls = ::std::ffi::CString::from_raw((&*object.meta_object()).class_name() as *mut i8);
-			println!("name {:?}", cls); 
-			::std::mem::forget(cls);
-		}
+		match event.type_() {
+			Type::Resize => {
+				let ptr = object.property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
+				if ptr != 0 {
+					let window: &mut Window = ::std::mem::transmute(ptr);
+					let (width,height) = window.size();
+					if let Some(ref mut cb) = window.h_resize {
+		                let w2: &mut Window = ::std::mem::transmute(ptr);
+		                (cb.as_mut())(w2, width, height);
+		            }
+				}
+				let cls = ::std::ffi::CString::from_raw((&*object.meta_object()).class_name() as *mut i8);
+				::std::mem::forget(cls);
+			},
+			_ => println!("evt {:?}", event.type_()),
+		} 
 		true
 	}
 }
