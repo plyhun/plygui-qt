@@ -11,6 +11,8 @@ path = "src/lib.rs"
 plygui-api = {version = "0.0.1", path = "../plygui-api"}
 qt_core = {version = "*", path = "../qt_core"}
 qt_widgets = {version = "*", path = "../qt_widgets"}
+qt_core_custom_events = {version = "*", path = "../qt_core_custom_events"}
+lazy_static = {version = "~1.0"}
 
 [features]
 markup = ["plygui-api/markup"]

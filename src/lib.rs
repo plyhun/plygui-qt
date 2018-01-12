@@ -1,9 +1,13 @@
 #[macro_use]
 extern crate plygui_api;
+#[macro_use]
+extern crate lazy_static;
 
 extern crate qt_core;
 extern crate qt_widgets;
+extern crate qt_core_custom_events;
 //extern crate qt_gui;
+
 #[macro_use]
 pub mod common;
 

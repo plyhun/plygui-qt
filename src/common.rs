@@ -3,8 +3,13 @@ use super::*;
 use std::{ptr, mem, str};
 use std::os::raw::c_void;
 use std::slice;
+use std::ffi::CString;
 
 use plygui_api::{development, ids, layout, types, callbacks};
+
+lazy_static! {
+	pub static ref PROPERTY: CString = CString::new("plygui").unwrap();
+}
 
 /*#[repr(C)]
 pub struct CocoaControlBase {

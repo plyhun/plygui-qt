@@ -58,9 +58,7 @@ impl UiApplication for Application {
 
 impl Drop for Application {
     fn drop(&mut self) {
-        unsafe {
-            
-        }
+    	QApplication::close_all_windows();
     }
 }
 
