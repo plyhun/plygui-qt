@@ -198,8 +198,6 @@ fn event_handler(object: &mut Object, event: &Event) -> bool {
 		                (cb.as_mut())(w2, width, height);
 		            }
 				}
-				let cls = ::std::ffi::CString::from_raw((&*object.meta_object()).class_name() as *mut i8);
-				::std::mem::forget(cls);
 			},
 			_ => println!("evt {:?}", event.type_()),
 		} 
