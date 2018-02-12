@@ -6,6 +6,8 @@ use plygui_api::traits::{UiControl, UiHasLayout, UiHasLabel, UiButton, UiMember,
 use plygui_api::members::MEMBER_ID_BUTTON;
 
 use qt_core::rect::{Rect as QRect};
+use qt_core::slots::SlotNoArgs;
+use qt_core::connection::Signal;
 use qt_gui::font_metrics::{FontMetrics as QFontMetrics};
 use qt_widgets::push_button::{PushButton as QPushButton};
 
@@ -18,7 +20,7 @@ const DEFAULT_PADDING: i32 = 10;
 pub struct Button {
     base: common::QtControlBase,
 
-    h_left_clicked: Option<callbacks::Click>,
+    h_left_clicked: (bool, SlotNoArgs<'static>),
     h_right_clicked: Option<callbacks::Click>,
 }
 
@@ -36,12 +38,20 @@ impl Button {
 	                             },
                              	event_handler,
                              ),
-                     h_left_clicked: None,
+                     h_left_clicked: (false, SlotNoArgs::new(move ||{})),
                      h_right_clicked: None,
                  });
         unsafe {
         	let ptr = btn.as_ref() as *const _ as u64;
-        	(btn.base.widget.as_mut().static_cast_mut() as &mut QObject).set_property(PROPERTY.as_ptr() as *const i8, &QVariant::new0(ptr));
+        	let qo = btn.base.widget.static_cast_mut() as &mut QObject;
+        	qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::new0(ptr));
+        }
+        unsafe {
+        	use qt_core::cpp_utils::DynamicCast;
+        	
+        	let qo: *mut QPushButton = btn.base.widget.dynamic_cast_mut().unwrap();
+        	(&mut *qo).signals().released().connect(&btn.h_left_clicked.1);
+        	//cast_qobject_mut::<QPushButton>(&mut *qo).signals().released().connect(&btn.h_left_clicked.1);
         }
         btn.set_layout_padding(layout::BoundarySize::AllTheSame(DEFAULT_PADDING).into());
         btn.set_label(label);
@@ -64,7 +74,20 @@ impl UiHasLabel for Button {
 
 impl UiClickable for Button {
 	fn on_click(&mut self, cb: Option<callbacks::Click>) {
-        self.h_left_clicked = cb;
+		self.h_left_clicked.0 = cb.is_some();
+		if cb.is_some() {
+			let mut cb = cb.unwrap();		
+			let button: *mut Button = self;
+			self.h_left_clicked.1.set(move || unsafe {
+		        //let ptr = (&*btn).property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
+				//if ptr != 0 {
+					//let button: &mut Button = ::std::mem::transmute(ptr);
+					(cb.as_mut())(&mut *button);
+				//}
+	        });
+		} else {
+			self.h_left_clicked.1.clear();
+		}
     }    
 }
 
@@ -297,12 +320,11 @@ fn event_handler(object: &mut QObject, event: &QEvent) -> bool {
 	unsafe {
 		match event.type_() {
 			QEventType::Resize => {
-				let ptr = object.property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
-				if ptr != 0 {
-					let window: &mut Button = ::std::mem::transmute(ptr);
-					let (width,height) = window.size();
-					if let Some(ref mut cb) = window.base.h_resize {
-		                let w2: &mut Window = ::std::mem::transmute(ptr);
+				let ptr = object as *mut QObject;
+				if let Some(button) = cast_qobject_to_uimember_mut::<Button>(object) {
+					let (width,height) = button.size();
+					if let Some(ref mut cb) = button.base.h_resize {
+		                let w2: &mut Button = ::std::mem::transmute(ptr);
 		                (cb.as_mut())(w2, width, height);
 		            }
 				}

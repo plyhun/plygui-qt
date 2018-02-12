@@ -10,7 +10,7 @@ pub use qt_core_custom_events::custom_event_filter::CustomEventFilter;
 use std::mem;
 use std::ffi::CString;
 
-use plygui_api::{development, ids, layout, types, callbacks};
+use plygui_api::{development, ids, layout, types, callbacks, traits};
 
 lazy_static! {
 	pub static ref PROPERTY: CString = CString::new("plygui").unwrap();
@@ -136,7 +136,7 @@ pub fn cast_uicommon_to_qtcommon<'a>(control: &'a development::UiControlCommon) 
 		mem::transmute(control)
 	}
 }
-pub fn cast_qobject_to_uimember_mut<'a>(object: &'a mut QObject) -> Option<&'a mut development::UiMemberCommon> {
+fn cast_qobject_mut<'a, T>(object: &'a mut QObject) -> Option<&'a mut T> where T: Sized {
 	unsafe {
 		let ptr = (&*object).property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
 		if ptr != 0 {
@@ -146,7 +146,7 @@ pub fn cast_qobject_to_uimember_mut<'a>(object: &'a mut QObject) -> Option<&'a m
 		}
 	}
 }
-pub fn cast_qobject_to_uimember<'a>(object: &'a QObject) -> Option<&'a development::UiMemberCommon> {
+fn cast_qobject<'a, T>(object: &'a QObject) -> Option<&'a T> where T: Sized {
 	unsafe {
 		let ptr = (&*object).property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
 		if ptr != 0 {
@@ -156,31 +156,44 @@ pub fn cast_qobject_to_uimember<'a>(object: &'a QObject) -> Option<&'a developme
 		}
 	}
 }
-pub unsafe fn cast_qobject_mut<'a, T>(object: &'a mut QObject) -> &'a mut T where T: Sized {
+pub fn cast_qobject_to_uimember_mut<'a, T>(object: &'a mut QObject) -> Option<&'a mut T> where T: traits::UiMember + Sized {
+	cast_qobject_mut(object)
+}
+pub fn cast_qobject_to_uimember<'a, T>(object: &'a QObject) -> Option<&'a T> where T: traits::UiMember + Sized {
+	cast_qobject(object)
+}
+pub fn cast_qobject_to_common_mut<'a>(object: &'a mut QObject) -> Option<&'a mut development::UiMemberCommon> {
+	cast_qobject_mut(object)
+}
+pub fn cast_qobject_to_common<'a>(object: &'a QObject) -> Option<&'a development::UiMemberCommon> {
+	cast_qobject(object)
+}
+/*pub unsafe fn downcast_qobject_mut<'a, T>(object: &'a mut QObject) -> &'a mut T where T: Sized {
 	mem::transmute(cast_qobject_to_uimember_mut(object).unwrap())
 }
-pub unsafe fn cast_qobject<'a, T>(object: &'a QObject) -> &'a T where T: Sized {
+pub unsafe fn downcast_qobject<'a, T>(object: &'a QObject) -> &'a T where T: Sized {
 	mem::transmute(cast_qobject_to_uimember(object).unwrap())
-}
+}*/
 
 #[macro_export]
 macro_rules! impl_invalidate {
 	($typ: ty) => {
-		unsafe fn invalidate_impl(this: &mut QtControlBase) {
+		unsafe fn invalidate_impl(this: &mut common::QtControlBase) {
+			use qt_core::cpp_utils::StaticCast;
 			use plygui_api::development::UiDrawable;
 			
 			let parent_widget = this.widget.as_mut().parent_widget();
 			if parent_widget.is_null() {
 				return;
 			}
-			if let Some(mparent) = common::cast_qobject_to_uimember_mut((&mut *parent_widget).static_cast_mut() as &mut ::qt_core::object::Object) {
+			if let Some(mparent) = common::cast_qobject_to_common_mut((&mut *parent_widget).static_cast_mut() as &mut ::qt_core::object::Object) {
 				let (pw, ph) = mparent.size();
 				let this: &mut $typ = ::std::mem::transmute(this);
 				let (_,_,changed) = this.measure(pw, ph);
 				this.draw(None);		
 						
 				if mparent.is_control().is_some() {
-					let wparent: &mut QtControlBase = ::std::mem::transmute(mparent);
+					let wparent: &mut common::QtControlBase = ::std::mem::transmute(mparent);
 					if changed {
 						wparent.invalidate();
 					} 
