@@ -35,7 +35,7 @@ impl Button {
 								     fn_is_control: is_control,
 								     fn_is_control_mut: is_control_mut,
 								     fn_size: size,
-	                             },
+	                            },
                              	event_handler,
                              ),
                      h_left_clicked: (false, SlotNoArgs::new(move ||{})),
@@ -43,7 +43,7 @@ impl Button {
                  });
         unsafe {
         	let ptr = btn.as_ref() as *const _ as u64;
-        	let qo = btn.base.widget.static_cast_mut() as &mut QObject;
+        	let qo: &mut QObject = btn.base.widget.static_cast_mut();
         	qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::new0(ptr));
         }
         unsafe {
@@ -51,7 +51,6 @@ impl Button {
         	
         	let qo: *mut QPushButton = btn.base.widget.dynamic_cast_mut().unwrap();
         	(&mut *qo).signals().released().connect(&btn.h_left_clicked.1);
-        	//cast_qobject_mut::<QPushButton>(&mut *qo).signals().released().connect(&btn.h_left_clicked.1);
         }
         btn.set_layout_padding(layout::BoundarySize::AllTheSame(DEFAULT_PADDING).into());
         btn.set_label(label);
@@ -259,10 +258,10 @@ impl development::UiDrawable for Button {
     	}
     	if let Some(coords) = self.base.coords {
 			//let (lp,tp,rp,bp) = self.base.control_base.layout.padding.into();
-			let (lm,tm,_,_) = self.base.control_base.layout.margin.into();
-			self.base.widget.as_mut().move_((coords.0 as i32 + lm, coords.1 as i32 + tm));
+	    	let (lm,tm,rm,bm) = self.base.control_base.layout.margin.into();
+	        self.base.widget.as_mut().move_((coords.0 as i32 + lm, coords.1 as i32 + tm));
 			self.base.widget.as_mut().set_fixed_size(
-				(self.base.measured_size.0 as i32, self.base.measured_size.1 as i32)
+				(self.base.measured_size.0 as i32 - lm - rm, self.base.measured_size.1 as i32 - rm - bm)
 			);
 		}
     }
@@ -279,30 +278,30 @@ impl development::UiDrawable for Button {
                 let mut label_size = QRect::new((0,0,0,0));
                 let w = match self.base.control_base.layout.width {
                     layout::Size::MatchParent => parent_width as i32 - lm - rm,
-                    layout::Size::Exact(w) => w as i32 - lm - rm,
+                    layout::Size::Exact(w) => w as i32,
                     layout::Size::WrapContent => {
                         if label_size.width() < 1 {
                         	let mut fm = QFontMetrics::new(font);
                         	label_size = fm.bounding_rect(&(&*self.base.widget.as_ref()).window_title());							
                         }
-                        label_size.width() as i32 + lp + rp
+                        label_size.width() + lp + rp
                     } 
                 };
                 let h = match self.base.control_base.layout.height {
                     layout::Size::MatchParent => parent_height as i32 - tm - bm,
-                    layout::Size::Exact(h) => h as i32 - tm - bm,
+                    layout::Size::Exact(h) => h as i32,
                     layout::Size::WrapContent => {
                         if label_size.height() < 1 {
                             let mut fm = QFontMetrics::new(font);
                         	label_size = fm.bounding_rect(&(&*self.base.widget.as_ref()).window_title());	
                         }
-                        label_size.height() as i32 + tp + bp
+                        label_size.height() + tp + bp
                     } 
                 };
-                (max(0,w) as u16, max(0,h) as u16)
+                (max(0, w as i32 + lm + rm) as u16, max(0, h as i32 + tm + bm) as u16)
             },
         };
-        (max(0, self.base.measured_size.0 as i32 + lm + rm) as u16, max(0, self.base.measured_size.1 as i32 + tm + bm) as u16, self.base.measured_size != old_size)
+        (self.base.measured_size.0 as u16, self.base.measured_size.1 as i32 as u16, self.base.measured_size != old_size)
     }
 }
 
