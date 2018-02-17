@@ -207,7 +207,7 @@ impl UiControl for Button {
     	fill_from_markup_label!(self, markup);
     	//fill_from_markup_callbacks!(self, markup, registry, ["on_left_click" => FnMut(&mut UiButton)]);
     	
-    	if let Some(on_left_click) = markup.attributes.get("on_left_click") {
+    	if let Some(on_left_click) = markup.attributes.get("on_click") {
     		let callback: callbacks::Click = registry.pop_callback(on_left_click.as_attribute()).unwrap();
     		self.on_left_click(Some(callback));
     	}
