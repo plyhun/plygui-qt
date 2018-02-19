@@ -14,7 +14,7 @@ use qt_widgets::push_button::{PushButton as QPushButton};
 use std::borrow::Cow;
 use std::cmp::max;
 
-const DEFAULT_PADDING: i32 = 10;
+const DEFAULT_PADDING: i32 = 6;
 
 #[repr(C)]
 pub struct Button {
@@ -191,13 +191,11 @@ impl UiControl for Button {
     fn on_added_to_container(&mut self, parent: &UiContainer, x: i32, y: i32) {
     	use plygui_api::development::UiDrawable;
     	
-        let (pw, ph) = parent.size();
+        let (pw, ph) = parent.draw_area_size();
         self.measure(pw, ph);
         self.draw(Some((x, y)));
     }
-    fn on_removed_from_container(&mut self, _: &UiContainer) {
-        unsafe { self.base.on_removed_from_container(); }
-    }	
+    fn on_removed_from_container(&mut self, _: &UiContainer) {}	
     
     #[cfg(feature = "markup")]
     fn fill_from_markup(&mut self, markup: &plygui_api::markup::Markup, registry: &mut plygui_api::markup::MarkupRegistry) {
@@ -223,6 +221,7 @@ impl UiControl for Button {
 impl UiMember for Button {
     fn set_visibility(&mut self, visibility: types::Visibility) {
         self.base.set_visibility(visibility);
+        self.base.invalidate();
     }
     fn visibility(&self) -> types::Visibility {
         self.base.visibility()
@@ -257,8 +256,7 @@ impl development::UiDrawable for Button {
     		self.base.coords = coords;
     	}
     	if let Some(coords) = self.base.coords {
-			//let (lp,tp,rp,bp) = self.base.control_base.layout.padding.into();
-	    	let (lm,tm,rm,bm) = self.base.control_base.layout.margin.into();
+			let (lm,tm,rm,bm) = self.base.control_base.layout.margin.into();
 	        self.base.widget.as_mut().move_((coords.0 as i32 + lm, coords.1 as i32 + tm));
 			self.base.widget.as_mut().set_fixed_size(
 				(self.base.measured_size.0 as i32 - lm - rm, self.base.measured_size.1 as i32 - rm - bm)
@@ -267,38 +265,38 @@ impl development::UiDrawable for Button {
     }
     fn measure(&mut self, parent_width: u16, parent_height: u16) -> (u16, u16, bool) {
     	let old_size = self.base.measured_size;
-    	let (lp,tp,rp,bp) = self.base.control_base.layout.padding.into();
-    	let (lm,tm,rm,bm) = self.base.control_base.layout.margin.into();
-    	
-    	let font = self.base.widget.as_ref().font();
-    	
-        self.base.measured_size = match self.visibility() {
+    	self.base.measured_size = match self.visibility() {
             types::Visibility::Gone => (0, 0),
             _ => {
-                let mut label_size = QRect::new((0,0,0,0));
+                let (lp,tp,rp,bp) = self.base.control_base.layout.padding.into();
+		    	let (lm,tm,rm,bm) = self.base.control_base.layout.margin.into();
+		    	    	
+		    	let font = self.base.widget.as_ref().font();
+		    	
+		        let mut label_size = QRect::new((0,0,0,0));
                 let w = match self.base.control_base.layout.width {
-                    layout::Size::MatchParent => parent_width as i32 - lm - rm,
+                    layout::Size::MatchParent => parent_width as i32,
                     layout::Size::Exact(w) => w as i32,
                     layout::Size::WrapContent => {
                         if label_size.width() < 1 {
                         	let mut fm = QFontMetrics::new(font);
                         	label_size = fm.bounding_rect(&(&*self.base.widget.as_ref()).window_title());							
                         }
-                        label_size.width() + lp + rp
+                        label_size.width() + lp + rp + lm + rm + 16
                     } 
                 };
                 let h = match self.base.control_base.layout.height {
-                    layout::Size::MatchParent => parent_height as i32 - tm - bm,
+                    layout::Size::MatchParent => parent_height as i32,
                     layout::Size::Exact(h) => h as i32,
                     layout::Size::WrapContent => {
                         if label_size.height() < 1 {
                             let mut fm = QFontMetrics::new(font);
                         	label_size = fm.bounding_rect(&(&*self.base.widget.as_ref()).window_title());	
                         }
-                        label_size.height() + tp + bp
+                        label_size.height() + tp + bp + tm + bm
                     } 
                 };
-                (max(0, w as i32 + lm + rm) as u16, max(0, h as i32 + tm + bm) as u16)
+                (max(0, w) as u16, max(0, h) as u16)
             },
         };
         (self.base.measured_size.0 as u16, self.base.measured_size.1 as i32 as u16, self.base.measured_size != old_size)

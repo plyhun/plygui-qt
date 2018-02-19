@@ -65,9 +65,6 @@ impl QtControlBase {
 	pub fn invalidate(&mut self) {
 		unsafe { (self.invalidate)(self) }
 	}
-    pub unsafe fn on_removed_from_container(&mut self) {
-        
-    }   
     pub fn set_visibility(&mut self, visibility: types::Visibility) {
         if self.control_base.member_base.visibility != visibility {
             self.control_base.member_base.visibility = visibility;
