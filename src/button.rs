@@ -60,14 +60,14 @@ impl Button {
 
 impl UiHasLabel for Button {
 	fn label<'a>(&'a self) -> Cow<'a, str> {
-		let name = (&*self.base.widget.as_ref()).window_title().to_utf8();
+		let name = (self.base.widget.as_ref().dynamic_cast().unwrap() as &QPushButton).text().to_utf8();
         unsafe {
 	      let bytes = std::slice::from_raw_parts(name.const_data() as *const u8, name.count(()) as usize);
 	      Cow::Owned(std::str::from_utf8_unchecked(bytes).to_owned())
 	    }
 	}
     fn set_label(&mut self, label: &str) {
-    	self.base.widget.set_window_title(&QString::from_std_str(label));        
+    	(self.base.widget.as_mut().dynamic_cast_mut().unwrap() as &mut QPushButton).set_text(&QString::from_std_str(label));        
     }
 }
 
@@ -203,11 +203,11 @@ impl UiControl for Button {
     	
     	fill_from_markup_base!(self, markup, registry, Button, [MEMBER_ID_BUTTON, MEMBER_TYPE_BUTTON]);
     	fill_from_markup_label!(self, markup);
-    	//fill_from_markup_callbacks!(self, markup, registry, ["on_left_click" => FnMut(&mut UiButton)]);
+    	//fill_from_markup_callbacks!(self, markup, registry, ["on_click" => FnMut(&mut UiButton)]);
     	
-    	if let Some(on_left_click) = markup.attributes.get("on_click") {
-    		let callback: callbacks::Click = registry.pop_callback(on_left_click.as_attribute()).unwrap();
-    		self.on_left_click(Some(callback));
+    	if let Some(on_click) = markup.attributes.get("on_click") {
+    		let callback: callbacks::Click = registry.pop_callback(on_click.as_attribute()).unwrap();
+    		self.on_click(Some(callback));
     	}
     }
     fn as_has_layout(&self) -> &UiHasLayout {
@@ -280,7 +280,7 @@ impl development::UiDrawable for Button {
                     layout::Size::WrapContent => {
                         if label_size.width() < 1 {
                         	let mut fm = QFontMetrics::new(font);
-                        	label_size = fm.bounding_rect(&(&*self.base.widget.as_ref()).window_title());							
+                        	label_size = fm.bounding_rect(&(self.base.widget.as_ref().dynamic_cast().unwrap() as &QPushButton).text());							
                         }
                         label_size.width() + lp + rp + lm + rm + 16
                     } 
@@ -291,7 +291,7 @@ impl development::UiDrawable for Button {
                     layout::Size::WrapContent => {
                         if label_size.height() < 1 {
                             let mut fm = QFontMetrics::new(font);
-                        	label_size = fm.bounding_rect(&(&*self.base.widget.as_ref()).window_title());	
+                        	label_size = fm.bounding_rect(&(self.base.widget.as_ref().dynamic_cast().unwrap() as &QPushButton).text());	
                         }
                         label_size.height() + tp + bp + tm + bm
                     } 

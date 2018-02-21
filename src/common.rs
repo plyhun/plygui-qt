@@ -1,6 +1,6 @@
 pub use qt_core::variant::{Variant as QVariant};
 pub use qt_core::string::{String as QString};
-pub use qt_core::cpp_utils::{StaticCast, CppBox};
+pub use qt_core::cpp_utils::{StaticCast, DynamicCast, CppBox};
 pub use qt_core::object::{Object as QObject};
 pub use qt_core::event::{Type as QEventType, Event as QEvent};
 pub use qt_widgets::size_policy::{Policy as QPolicy};

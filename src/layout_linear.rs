@@ -274,8 +274,11 @@ impl UiControl for LinearLayout {
     }	
 
     #[cfg(feature = "markup")]
-    fn fill_from_markup(&mut self, markup: &super::markup::Markup, registry: &mut super::markup::MarkupRegistry) {
+    fn fill_from_markup(&mut self, markup: &plygui_api::markup::Markup, registry: &mut plygui_api::markup::MarkupRegistry) {
+    	use plygui_api::markup::MEMBER_TYPE_LINEAR_LAYOUT;
     	
+    	fill_from_markup_base!(self, markup, registry, LinearLayout, [MEMBER_ID_LAYOUT_LINEAR, MEMBER_TYPE_LINEAR_LAYOUT]);
+		fill_from_markup_children!(self, markup, registry);		
     }
 
     fn as_has_layout(&self) -> &UiHasLayout {
@@ -410,7 +413,7 @@ impl UiLinearLayout for LinearLayout {
 
 #[allow(dead_code)]
 pub(crate) fn spawn() -> Box<UiControl> {
-	Button::new("")
+	LinearLayout::new(layout::Orientation::Vertical)
 }
 
 impl_invalidate!(LinearLayout);
