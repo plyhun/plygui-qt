@@ -317,11 +317,14 @@ fn event_handler(object: &mut QObject, event: &QEvent) -> bool {
 	unsafe {
 		match event.type_() {
 			QEventType::Resize => {
-				let ptr = object as *mut QObject;
-				if let Some(button) = cast_qobject_to_uimember_mut::<Button>(object) {
+				let ptr = object.property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
+				if ptr != 0 {
+					use std::mem;
+					
+					let button: &mut Button = mem::transmute(ptr);
 					let (width,height) = button.size();
 					if let Some(ref mut cb) = button.base.h_resize {
-		                let w2: &mut Button = ::std::mem::transmute(ptr);
+		                let w2: &mut Button = mem::transmute(ptr);
 		                (cb.as_mut())(w2, width, height);
 		            }
 				}

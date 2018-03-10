@@ -425,11 +425,14 @@ fn event_handler(object: &mut QObject, event: &QEvent) -> bool {
 	unsafe {
 		match event.type_() {
 			QEventType::Resize => {
-				let ptr = object as *mut QObject;
-				if let Some(ll) = cast_qobject_to_uimember_mut::<LinearLayout>(object) {
+				let ptr = object.property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
+				if ptr != 0 {
+					use std::mem;
+					
+					let ll: &mut LinearLayout = mem::transmute(ptr);
 					let (width,height) = ll.size();
 					if let Some(ref mut cb) = ll.base.h_resize {
-		                let w2: &mut LinearLayout = ::std::mem::transmute(ptr);
+		                let w2: &mut LinearLayout = mem::transmute(ptr);
 		                (cb.as_mut())(w2, width, height);
 		            }
 				}

@@ -225,14 +225,16 @@ fn event_handler(object: &mut QObject, event: &QEvent) -> bool {
 			QEventType::Resize => {
 				let ptr = object.property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
 				if ptr != 0 {
-					let window: &mut Window = ::std::mem::transmute(ptr);
+					use std::mem;
+					
+					let window: &mut Window = mem::transmute(ptr);
 					let (width,height) = window.size();
 					if let Some(ref mut child) = window.child {
 		                child.measure(width, height);
 		                child.draw(Some((0, 0)));
 		            }
 					if let Some(ref mut cb) = window.h_resize {
-		                let w2: &mut Window = ::std::mem::transmute(ptr);
+		                let w2: &mut Window = mem::transmute(ptr);
 		                (cb.as_mut())(w2, width, height);
 		            }
 				}
