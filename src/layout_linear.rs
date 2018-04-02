@@ -166,7 +166,12 @@ impl development::UiDrawable for LinearLayout {
         		(w, h)
         	}
         };
-    	(self.base.measured_size.0, self.base.measured_size.1, self.base.measured_size != old_size)
+    	self.base.dirty = self.base.measured_size != old_size;
+        (
+            self.base.measured_size.0,
+            self.base.measured_size.1,
+            self.base.dirty,
+        )
     }
 }
 
@@ -247,6 +252,7 @@ impl UiControl for LinearLayout {
     	
         let (pw, ph) = parent.draw_area_size();
         self.measure(pw, ph);
+        self.base.dirty = false;
         self.draw(Some((x, y)));
         
         let selfptr = self as *mut _ as *mut c_void;
@@ -430,11 +436,14 @@ fn event_handler(object: &mut QObject, event: &QEvent) -> bool {
 					use std::mem;
 					
 					let ll: &mut LinearLayout = mem::transmute(ptr);
-					let (width,height) = ll.size();
-					if let Some(ref mut cb) = ll.base.h_resize {
-		                let w2: &mut LinearLayout = mem::transmute(ptr);
-		                (cb.as_mut())(w2, width, height);
-		            }
+					if ll.base.dirty {
+						ll.base.dirty = false;
+						let (width,height) = ll.size();
+						if let Some(ref mut cb) = ll.base.h_resize {
+			                let w2: &mut LinearLayout = mem::transmute(ptr);
+			                (cb.as_mut())(w2, width, height);
+			            }
+					}
 				}
 			},
 			_ => {},

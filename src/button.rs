@@ -193,6 +193,7 @@ impl UiControl for Button {
     	
         let (pw, ph) = parent.draw_area_size();
         self.measure(pw, ph);
+        self.base.dirty = false;
         self.draw(Some((x, y)));
     }
     fn on_removed_from_container(&mut self, _: &UiContainer) {}	
@@ -299,7 +300,12 @@ impl development::UiDrawable for Button {
                 (max(0, w) as u16, max(0, h) as u16)
             },
         };
-        (self.base.measured_size.0 as u16, self.base.measured_size.1 as i32 as u16, self.base.measured_size != old_size)
+        self.base.dirty = self.base.measured_size != old_size;
+        (
+            self.base.measured_size.0,
+            self.base.measured_size.1,
+            self.base.dirty,
+        )
     }
 }
 
@@ -322,11 +328,14 @@ fn event_handler(object: &mut QObject, event: &QEvent) -> bool {
 					use std::mem;
 					
 					let button: &mut Button = mem::transmute(ptr);
-					let (width,height) = button.size();
-					if let Some(ref mut cb) = button.base.h_resize {
-		                let w2: &mut Button = mem::transmute(ptr);
-		                (cb.as_mut())(w2, width, height);
-		            }
+					if button.base.dirty {
+						button.base.dirty = false;
+						let (width,height) = button.size();
+						if let Some(ref mut cb) = button.base.h_resize {
+			                let w2: &mut Button = mem::transmute(ptr);
+			                (cb.as_mut())(w2, width, height);
+			            }
+					}
 				}
 			},
 			_ => {},

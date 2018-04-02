@@ -23,6 +23,7 @@ pub struct QtControlBase {
     pub widget: CppBox<QWidget>,
     pub coords: Option<(i32, i32)>,
     pub measured_size: (u16, u16),
+    pub dirty: bool,
     
     event_callback: CppBox<CustomEventFilter>,
     pub h_resize: Option<callbacks::Resize>,
@@ -50,6 +51,7 @@ impl QtControlBase {
         	h_resize: None,
             coords: None,
             measured_size: (0, 0),
+            dirty: true,
             
             invalidate: invalidate
         };

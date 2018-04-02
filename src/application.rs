@@ -55,7 +55,7 @@ impl UiApplication for Application {
     	use plygui_api::traits::UiContainer;
     	
     	for window in self.windows.as_mut_slice() {
-    		let window = unsafe { common::cast_qobject_to_uimember_mut::<window::Window>(window.as_mut().static_cast_mut() as &mut QObject).unwrap() };
+    		let window = common::cast_qobject_to_uimember_mut::<window::Window>(window.as_mut().static_cast_mut() as &mut QObject).unwrap();
     		if window.as_base().id() == id {
     			return Some(window);
     		} else {
@@ -68,7 +68,7 @@ impl UiApplication for Application {
     	use plygui_api::traits::UiContainer;
     	
     	for window in self.windows.as_slice() {
-    		let window = unsafe { common::cast_qobject_to_uimember::<window::Window>(window.as_ref().static_cast() as &QObject).unwrap() };
+    		let window = common::cast_qobject_to_uimember::<window::Window>(window.as_ref().static_cast() as &QObject).unwrap();
     		if window.as_base().id() == id {
     			return Some(window);
     		} else {
