@@ -12,8 +12,9 @@ plygui-api = {version = "0.0.1", path = "../plygui-api"}
 qt_core = {version = "~0.2"}
 qt_gui = {version = "~0.2"}
 qt_widgets = {version = "~0.2"}
-qt_core_custom_events = {version = "*", path = "../qt_core_custom_events"}
+qt_core_custom_events = {version = "0.0.1"}
 lazy_static = {version = "~1.0"}
+libc = {version = "~0.2"}
 
 [features]
 markup = ["plygui-api/markup"]

@@ -1,64 +1,30 @@
 use super::*;
 use super::common::*;
 
-use plygui_api::{layout, types, development, callbacks};
-use plygui_api::traits::{UiControl, UiHasLayout, UiHasLabel, UiButton, UiMember, UiContainer, UiClickable};
-use plygui_api::members::MEMBER_ID_BUTTON;
-
 use qt_core::rect::{Rect as QRect};
 use qt_core::slots::SlotNoArgs;
 use qt_core::connection::Signal;
 use qt_gui::font_metrics::{FontMetrics as QFontMetrics};
 use qt_widgets::push_button::{PushButton as QPushButton};
 
+use plygui_api::{layout, types, callbacks, controls};
+use plygui_api::development::*;
+
 use std::borrow::Cow;
 use std::cmp::max;
 
 const DEFAULT_PADDING: i32 = 6;
 
+pub type Button = Member<Control<QtButton>>;
+
 #[repr(C)]
-pub struct Button {
-    base: common::QtControlBase,
+pub struct QtButton {
+    base: common::QtControlBase<Button>,
 
     h_left_clicked: (bool, SlotNoArgs<'static>),
-    h_right_clicked: Option<callbacks::Click>,
 }
 
-impl Button {
-    pub fn new(label: &str) -> Box<Button> {
-        let mut btn = Box::new(Button {
-                     base: common::QtControlBase::with_params(
-		                     	unsafe {(&mut *QPushButton::new(&QString::from_std_str(label)).into_raw()).static_cast_mut() as &mut QWidget},
-		                     	invalidate_impl,
-                             	development::UiMemberFunctions {
-		                             fn_member_id: member_id,
-								     fn_is_control: is_control,
-								     fn_is_control_mut: is_control_mut,
-								     fn_size: size,
-	                            },
-                             	event_handler,
-                             ),
-                     h_left_clicked: (false, SlotNoArgs::new(move ||{})),
-                     h_right_clicked: None,
-                 });
-        unsafe {
-        	let ptr = btn.as_ref() as *const _ as u64;
-        	let qo: &mut QObject = btn.base.widget.static_cast_mut();
-        	qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::new0(ptr));
-        }
-        unsafe {
-        	use qt_core::cpp_utils::DynamicCast;
-        	
-        	let qo: *mut QPushButton = btn.base.widget.dynamic_cast_mut().unwrap();
-        	(&mut *qo).signals().released().connect(&btn.h_left_clicked.1);
-        }
-        btn.set_layout_padding(layout::BoundarySize::AllTheSame(DEFAULT_PADDING).into());
-        btn.set_label(label);
-        btn
-    }
-}
-
-impl UiHasLabel for Button {
+impl HasLabelInner for QtButton {
 	fn label<'a>(&'a self) -> Cow<'a, str> {
 		let name = (self.base.widget.as_ref().dynamic_cast().unwrap() as &QPushButton).text().to_utf8();
         unsafe {
@@ -66,22 +32,23 @@ impl UiHasLabel for Button {
 	      Cow::Owned(std::str::from_utf8_unchecked(bytes).to_owned())
 	    }
 	}
-    fn set_label(&mut self, label: &str) {
+    fn set_label(&mut self, _: &mut MemberBase, label: &str) {
     	(self.base.widget.as_mut().dynamic_cast_mut().unwrap() as &mut QPushButton).set_text(&QString::from_std_str(label));        
     }
 }
 
-impl UiClickable for Button {
+impl ClickableInner for QtButton {
 	fn on_click(&mut self, cb: Option<callbacks::Click>) {
 		self.h_left_clicked.0 = cb.is_some();
 		if cb.is_some() {
-			let mut cb = cb.unwrap();		
-			let button: *mut Button = self;
+			let mut cb = cb.unwrap();
+			let ptr = self.base.widget.as_mut().static_cast_mut() as *mut QObject;
 			self.h_left_clicked.1.set(move || unsafe {
+			    let button = cast_qobject_to_uimember_mut::<Button>(&mut *ptr).unwrap();
 		        //let ptr = (&*btn).property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
 				//if ptr != 0 {
 					//let button: &mut Button = ::std::mem::transmute(ptr);
-					(cb.as_mut())(&mut *button);
+					(cb.as_mut())(button);
 				//}
 	        });
 		} else {
@@ -90,113 +57,60 @@ impl UiClickable for Button {
     }    
 }
 
-impl UiButton for Button {
-    
-    /*fn on_right_click(&mut self, cb: Option<Box<FnMut(&mut UiButton)>>) {
-        self.h_right_clicked = cb;
-    }*/
-    
-    fn as_control(&self) -> &UiControl {
-    	self
+impl ButtonInner for QtButton {
+    fn with_label(label: &str) -> Box<Button> {
+        use plygui_api::controls::{HasLabel, HasLayout};
+        
+        let mut btn = Box::new(Member::with_inner(Control::with_inner(QtButton {
+                     base: common::QtControlBase::with_params(
+		                     	unsafe {(&mut *QPushButton::new(&QString::from_std_str(label)).into_raw()).static_cast_mut() as &mut QWidget},
+		                     	event_handler,
+                             ),
+                     h_left_clicked: (false, SlotNoArgs::new(move ||{})),
+                 }, ()), MemberFunctions::new(_as_any, _as_any_mut, _as_member, _as_member_mut)));
+        unsafe {
+        	let ptr = btn.as_ref() as *const _ as u64;
+        	let qo: &mut QObject = btn.as_inner_mut().as_inner_mut().base.widget.static_cast_mut();
+        	qo.set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::new0(ptr));
+        }
+        unsafe {
+        	use qt_core::cpp_utils::DynamicCast;
+        	
+        	let qo: *mut QPushButton = btn.as_inner_mut().as_inner_mut().base.widget.dynamic_cast_mut().unwrap();
+        	(&mut *qo).signals().released().connect(&btn.as_inner_mut().as_inner_mut().h_left_clicked.1);
+        }
+        btn.set_layout_padding(layout::BoundarySize::AllTheSame(DEFAULT_PADDING).into());
+        btn.set_label(label);
+        btn
     }
-	fn as_control_mut(&mut self) -> &mut UiControl {
-		self
-	}
-	fn as_clickable(&self) -> &UiClickable {
-		self
-	}
-	fn as_clickable_mut(&mut self) -> &mut UiClickable {
-		self
-	}
-	fn as_has_label(&self) -> &UiHasLabel {
-		self
-	}
-	fn as_has_label_mut(&mut self) -> &mut UiHasLabel {
-		self
+}
+
+impl HasLayoutInner for QtButton {
+	fn on_layout_changed(&mut self, base: &mut MemberBase) {
+	    self.base.invalidate();
 	}
 }
 
-impl UiHasLayout for Button {
-	fn layout_width(&self) -> layout::Size {
-    	self.base.control_base.layout.width
-    }
-	fn layout_height(&self) -> layout::Size {
-		self.base.control_base.layout.height
-	}
-	fn layout_gravity(&self) -> layout::Gravity {
-		self.base.control_base.layout.gravity
-	}
-	fn layout_alignment(&self) -> layout::Alignment {
-		self.base.control_base.layout.alignment
-	}
-	fn layout_padding(&self) -> layout::BoundarySize {
-		self.base.control_base.layout.padding
-	}
-	fn layout_margin(&self) -> layout::BoundarySize {
-		self.base.control_base.layout.margin
-	}
-	
-	fn set_layout_padding(&mut self, padding: layout::BoundarySizeArgs) {
-		self.base.control_base.layout.padding = padding.into();
-		self.base.invalidate();
-	}
-	fn set_layout_margin(&mut self, margin: layout::BoundarySizeArgs) {
-		self.base.control_base.layout.margin = margin.into();
-		self.base.invalidate();
-	} 
-	fn set_layout_width(&mut self, width: layout::Size) {
-		self.base.control_base.layout.width = width;
-		self.base.invalidate();
-	}
-	fn set_layout_height(&mut self, height: layout::Size) {
-		self.base.control_base.layout.height = height;
-		self.base.invalidate();
-	}
-	fn set_layout_gravity(&mut self, gravity: layout::Gravity) {
-		self.base.control_base.layout.gravity = gravity;
-		self.base.invalidate();
-	}
-	fn set_layout_alignment(&mut self, alignment: layout::Alignment) {
-		self.base.control_base.layout.alignment = alignment;
-		self.base.invalidate();
-	}   
-	fn as_member(&self) -> &UiMember {
-		self
-	}
-	fn as_member_mut(&mut self) -> &mut UiMember {
-		self
-	}
-}
-
-impl UiControl for Button {
-    fn is_container_mut(&mut self) -> Option<&mut UiContainer> {
-        None
-    }
-    fn is_container(&self) -> Option<&UiContainer> {
-        None
-    }
-    
-    fn parent(&self) -> Option<&types::UiMemberBase> {
+impl ControlInner for QtButton {
+    fn parent(&self) -> Option<&controls::Member> {
         self.base.parent()
     }
-    fn parent_mut(&mut self) -> Option<&mut types::UiMemberBase> {
+    fn parent_mut(&mut self) -> Option<&mut controls::Member> {
         self.base.parent_mut()
     }
-    fn root(&self) -> Option<&types::UiMemberBase> {
+    fn root(&self) -> Option<&controls::Member> {
         self.base.root()
     }
-    fn root_mut(&mut self) -> Option<&mut types::UiMemberBase> {
+    fn root_mut(&mut self) -> Option<&mut controls::Member> {
         self.base.root_mut()
     }
-    fn on_added_to_container(&mut self, parent: &UiContainer, x: i32, y: i32) {
-    	use plygui_api::development::UiDrawable;
-    	
-        let (pw, ph) = parent.draw_area_size();
-        self.measure(pw, ph);
+    fn on_added_to_container(&mut self, base: &mut MemberControlBase, parent: &controls::Container, x: i32, y: i32) {
+    	let (pw, ph) = parent.draw_area_size();
+        self.measure(base, pw, ph);
         self.base.dirty = false;
-        self.draw(Some((x, y)));
+        self.draw(base, Some((x, y)));
     }
-    fn on_removed_from_container(&mut self, _: &UiContainer) {}	
+    fn on_removed_from_container(&mut self, _: &mut MemberControlBase, _: &controls::Container) {}	
     
     #[cfg(feature = "markup")]
     fn fill_from_markup(&mut self, markup: &plygui_api::markup::Markup, registry: &mut plygui_api::markup::MarkupRegistry) {
@@ -204,78 +118,51 @@ impl UiControl for Button {
     	
     	fill_from_markup_base!(self, markup, registry, Button, [MEMBER_ID_BUTTON, MEMBER_TYPE_BUTTON]);
     	fill_from_markup_label!(self, markup);
-    	//fill_from_markup_callbacks!(self, markup, registry, ["on_click" => FnMut(&mut UiButton)]);
-    	
-    	if let Some(on_click) = markup.attributes.get("on_click") {
-    		let callback: callbacks::Click = registry.pop_callback(on_click.as_attribute()).unwrap();
-    		self.on_click(Some(callback));
-    	}
+    	fill_from_markup_callbacks!(self, markup, registry, ["on_click" => FnMut(&mut controls::Button)]);
     }
-    fn as_has_layout(&self) -> &UiHasLayout {
-    	self
-    }
-	fn as_has_layout_mut(&mut self) -> &mut UiHasLayout {
-		self
-	}
 }
 
-impl UiMember for Button {
-    fn set_visibility(&mut self, visibility: types::Visibility) {
-        self.base.set_visibility(visibility);
-        self.base.invalidate();
+impl MemberInner for QtButton {
+    type Id = common::QtId;
+
+    fn on_set_visibility(&mut self, base: &mut MemberBase) {
+        self.base.invalidate()
     }
-    fn visibility(&self) -> types::Visibility {
-        self.base.visibility()
-    }
+
     fn size(&self) -> (u16, u16) {
         self.base.measured_size
     }
-    fn on_resize(&mut self, handler: Option<callbacks::Resize>) {
-        self.base.h_resize = handler;
-    }
-	
-    unsafe fn native_id(&self) -> usize {
-        self.base.widget.win_id() as usize
-    }
-    fn is_control(&self) -> Option<&UiControl> {
-    	Some(self)
-    }
-    fn is_control_mut(&mut self) -> Option<&mut UiControl> {
-    	Some(self)
-    } 
-    fn as_base(&self) -> &types::UiMemberBase {
-    	self.base.control_base.member_base.as_ref()
-    }
-    fn as_base_mut(&mut self) -> &mut types::UiMemberBase {
-    	self.base.control_base.member_base.as_mut()
+    
+    unsafe fn native_id(&self) -> Self::Id {
+        QtId::from(self.base.widget.as_ref() as *const _ as *mut QWidget)
     }
 }
 
-impl development::UiDrawable for Button {
-	fn draw(&mut self, coords: Option<(i32, i32)>) {
+impl Drawable for QtButton {
+	fn draw(&mut self, base: &mut MemberControlBase, coords: Option<(i32, i32)>) {
     	if coords.is_some() {
     		self.base.coords = coords;
     	}
     	if let Some(coords) = self.base.coords {
-			let (lm,tm,rm,bm) = self.base.control_base.layout.margin.into();
+			let (lm,tm,rm,bm) = base.control.layout.margin.into();
 	        self.base.widget.as_mut().move_((coords.0 as i32 + lm, coords.1 as i32 + tm));
 			self.base.widget.as_mut().set_fixed_size(
 				(self.base.measured_size.0 as i32 - lm - rm, self.base.measured_size.1 as i32 - rm - bm)
 			);
 		}
     }
-    fn measure(&mut self, parent_width: u16, parent_height: u16) -> (u16, u16, bool) {
+    fn measure(&mut self, base: &mut MemberControlBase, parent_width: u16, parent_height: u16) -> (u16, u16, bool) {
     	let old_size = self.base.measured_size;
-    	self.base.measured_size = match self.visibility() {
+    	self.base.measured_size = match base.member.visibility {
             types::Visibility::Gone => (0, 0),
             _ => {
-                let (lp,tp,rp,bp) = self.base.control_base.layout.padding.into();
-		    	let (lm,tm,rm,bm) = self.base.control_base.layout.margin.into();
+                let (lp,tp,rp,bp) = base.control.layout.padding.into();
+		    	let (lm,tm,rm,bm) = base.control.layout.margin.into();
 		    	    	
 		    	let font = self.base.widget.as_ref().font();
 		    	
 		        let mut label_size = QRect::new((0,0,0,0));
-                let w = match self.base.control_base.layout.width {
+                let w = match base.control.layout.width {
                     layout::Size::MatchParent => parent_width as i32,
                     layout::Size::Exact(w) => w as i32,
                     layout::Size::WrapContent => {
@@ -286,7 +173,7 @@ impl development::UiDrawable for Button {
                         label_size.width() + lp + rp + lm + rm + 16
                     } 
                 };
-                let h = match self.base.control_base.layout.height {
+                let h = match base.control.layout.height {
                     layout::Size::MatchParent => parent_height as i32,
                     layout::Size::Exact(h) => h as i32,
                     layout::Size::WrapContent => {
@@ -307,39 +194,33 @@ impl development::UiDrawable for Button {
             self.base.dirty,
         )
     }
+    fn invalidate(&mut self, base: &mut MemberControlBase) {
+        self.base.invalidate()
+    }
 }
 
 #[allow(dead_code)]
-pub(crate) fn spawn() -> Box<UiControl> {
-	Button::new("")
+pub(crate) fn spawn() -> Box<controls::Control> {
+	Button::with_label("").into_control()
 }
-
-impl_invalidate!(Button);
-impl_is_control!(Button);
-impl_size!(Button);
-impl_member_id!(MEMBER_ID_BUTTON);
 
 fn event_handler(object: &mut QObject, event: &QEvent) -> bool {
 	unsafe {
 		match event.type_() {
 			QEventType::Resize => {
-				let ptr = object.property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
-				if ptr != 0 {
-					use std::mem;
+				if let Some(ll) = cast_qobject_to_uimember_mut::<Button>(object) {
+			        use plygui_api::controls::Member;
 					
-					let button: &mut Button = mem::transmute(ptr);
-					if button.base.dirty {
-						button.base.dirty = false;
-						let (width,height) = button.size();
-						if let Some(ref mut cb) = button.base.h_resize {
-			                let w2: &mut Button = mem::transmute(ptr);
-			                (cb.as_mut())(w2, width, height);
-			            }
+					if ll.as_inner().as_inner().base.dirty {
+						ll.as_inner_mut().as_inner_mut().base.dirty = false;
+						let (width,height) = ll.size();
+						ll.call_on_resize(width, height);
 					}
-				}
+			    }
 			},
 			_ => {},
 		} 
 		false
 	}
 }
+impl_all_defaults!(Button);

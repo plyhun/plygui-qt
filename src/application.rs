@@ -7,38 +7,37 @@ use qt_core::string::String;
 use qt_core::core_application::{CoreApplication as QCoreApplication, CoreApplicationArgs as QCoreApplicationArgs};
 use qt_core::cpp_utils::CppBox;
 
-//use plygui_api::members::MEMBER_ID_APPLICATION;
-use plygui_api::traits::{UiWindow, UiApplication, UiMember};
-use plygui_api::types::WindowStartSize;
-use plygui_api::ids::Id;
+use plygui_api::{types, controls, ids};
+use plygui_api::development;
 
 use std::borrow::Cow;
 use std::process::exit;
 
-pub struct Application {
+pub type Application = development::Application<QtApplication>;
+
+pub struct QtApplication {
     inner: CppBox<QApplication>,
-    windows: Vec<CppBox<QMainWindow>>,
+    windows: Vec<QtId>,
 }
 
-impl Application {
-    pub fn with_name(name: &str) -> Box<Application> {
+impl development::ApplicationInner for QtApplication {
+    fn with_name(name: &str) -> Box<Application> {
+        use plygui_api::development::HasInner;
+        
     	let inner = unsafe { 
     		QApplication::new(QCoreApplicationArgs::from_real().get()) 
         };
     	QCoreApplication::set_application_name(&String::from_std_str(name));
-        Box::new(
-        	Application { 
+        Box::new(development::Application::with_inner(QtApplication { 
         		inner: inner,
         		windows: Vec::with_capacity(1),
-	        }
+	        }, ())
+        	
         )
     }
-}
-
-impl UiApplication for Application {
-    fn new_window(&mut self, title: &str, size: WindowStartSize, has_menu: bool) -> Box<UiWindow> {
-        let mut w = Window::new(title, size, has_menu);
-        self.windows.push(w.qwindow());
+    fn new_window(&mut self, title: &str, size: types::WindowStartSize, menu: types::WindowMenu) -> Box<controls::Window> {
+        let w = Window::with_params(title, size, menu);
+        self.windows.push(unsafe { w.native_id().into() });
         w
     }
     fn name<'a>(&'a self) -> Cow<'a, str> {
@@ -51,12 +50,12 @@ impl UiApplication for Application {
     fn start(&mut self) {
         exit(QApplication::exec());
     }
-    fn find_member_by_id_mut(&mut self, id: Id) -> Option<&mut UiMember> {
-    	use plygui_api::traits::UiContainer;
+    fn find_member_by_id_mut(&mut self, id: ids::Id) -> Option<&mut controls::Member> {
+    	use plygui_api::controls::{Member, Container};
     	
     	for window in self.windows.as_mut_slice() {
-    		let window = common::cast_qobject_to_uimember_mut::<window::Window>(window.as_mut().static_cast_mut() as &mut QObject).unwrap();
-    		if window.as_base().id() == id {
+    		let window = common::cast_qobject_to_uimember_mut::<window::Window>(window.static_cast_mut() as &mut QObject).unwrap();
+    		if window.id() == id {
     			return Some(window);
     		} else {
     			return window.find_control_by_id_mut(id).map(|control| control.as_member_mut());
@@ -64,12 +63,12 @@ impl UiApplication for Application {
     	}
     	None
     }
-    fn find_member_by_id(&self, id: Id) -> Option<&UiMember> {
-    	use plygui_api::traits::UiContainer;
+    fn find_member_by_id(&self, id: ids::Id) -> Option<&controls::Member> {
+    	use plygui_api::controls::{Member, Container};
     	
     	for window in self.windows.as_slice() {
-    		let window = common::cast_qobject_to_uimember::<window::Window>(window.as_ref().static_cast() as &QObject).unwrap();
-    		if window.as_base().id() == id {
+    		let window = common::cast_qobject_to_uimember::<window::Window>(window.static_cast() as &QObject).unwrap();
+    		if window.id() == id {
     			return Some(window);
     		} else {
     			return window.find_control_by_id(id).map(|control| control.as_member());
@@ -79,7 +78,7 @@ impl UiApplication for Application {
     }
 }
 
-impl Drop for Application {
+impl Drop for QtApplication {
     fn drop(&mut self) {
     	QApplication::close_all_windows();
     }
