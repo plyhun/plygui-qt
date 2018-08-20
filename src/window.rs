@@ -20,12 +20,6 @@ pub struct QtWindow {
     filter: CppBox<CustomEventFilter>,
 }
 
-impl QtWindow {
-    pub(crate) fn qwindow(&mut self) -> CppBox<QMainWindow> {
-    	unsafe { CppBox::new(self.window.as_mut()) }
-    }
-}
-
 impl HasLabelInner for QtWindow {
 	fn label<'a>(&'a self) -> Cow<'a, str> {
 		let name = (&*self.window.as_ref()).window_title().to_utf8();
@@ -40,7 +34,7 @@ impl HasLabelInner for QtWindow {
 }
 
 impl WindowInner for QtWindow {
-	fn with_params(title: &str, start_size: types::WindowStartSize, menu: types::WindowMenu) -> Box<Member<SingleContainer<Self>>> {
+	fn with_params(title: &str, start_size: types::WindowStartSize, _menu: types::WindowMenu) -> Box<Member<SingleContainer<Self>>> {
 	    use plygui_api::controls::HasLabel;
 	    
 	    let mut window = Box::new(Member::with_inner(SingleContainer::with_inner(QtWindow {
@@ -169,22 +163,20 @@ impl Drop for QtWindow {
 }
 
 fn event_handler(object: &mut QObject, event: &QEvent) -> bool {
-	unsafe {
-		match event.type_() {
-			QEventType::Resize => {
-			    if let Some(window) = common::cast_qobject_to_uimember_mut::<Window>(object) {
-			        let (width,height) = window.as_inner().as_inner().size();
-					if let Some(ref mut child) = window.as_inner_mut().as_inner_mut().child {
-		                child.measure(width, height);
-		                child.draw(Some((0, 0)));
-		            }
-					window.call_on_resize(width, height);
-			    }
-			},
-			_ => {},
-		} 
-		false
-	}
+	match event.type_() {
+		QEventType::Resize => {
+		    if let Some(window) = common::cast_qobject_to_uimember_mut::<Window>(object) {
+		        let (width,height) = window.as_inner().as_inner().size();
+				if let Some(ref mut child) = window.as_inner_mut().as_inner_mut().child {
+	                child.measure(width, height);
+	                child.draw(Some((0, 0)));
+	            }
+				window.call_on_resize(width, height);
+		    }
+		},
+		_ => {},
+	} 
+	false
 }
 
 impl_all_defaults!(Window);

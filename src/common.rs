@@ -1,14 +1,16 @@
 pub use qt_core::variant::{Variant as QVariant};
 pub use qt_core::string::{String as QString};
-pub use qt_core::cpp_utils::{StaticCast, DynamicCast, CppBox};
+pub use qt_core::cpp_utils::{StaticCast, DynamicCast, CppBox, CppDeletable};
 pub use qt_core::object::{Object as QObject};
+pub use qt_core::flags::Flags;
 pub use qt_core::event::{Type as QEventType, Event as QEvent};
 pub use qt_widgets::size_policy::{Policy as QPolicy};
 pub use qt_widgets::widget::{Widget as QWidget};
 pub use qt_core_custom_events::custom_event_filter::CustomEventFilter;
 
-use std::{marker, mem, ops, cmp, ptr};
-use std::ffi::CString;
+pub use std::{marker, mem, ops, cmp, ptr};
+pub use std::os::raw::c_void;
+pub use std::ffi::CString;
 
 use plygui_api::{development, types, controls};
 
@@ -36,7 +38,7 @@ impl From<QtId> for usize {
 }
 impl From<usize> for QtId {
     fn from(a: usize) -> QtId {
-        unsafe { QtId(ptr::NonNull::new(a as *mut QWidget).unwrap()) }
+        QtId(ptr::NonNull::new(a as *mut QWidget).unwrap())
     }
 }
 impl cmp::PartialOrd for QtId {
@@ -60,8 +62,8 @@ impl ops::DerefMut for QtId {
 impl development::NativeId for QtId {}
 
 #[repr(C)]
-pub struct QtControlBase<T: controls::Control + Sized> {
-    pub widget: CppBox<QWidget>,
+pub struct QtControlBase<T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> {
+    pub widget: CppBox<Q>,
     pub coords: Option<(i32, i32)>,
     pub measured_size: (u16, u16),
     pub dirty: bool,
@@ -71,36 +73,42 @@ pub struct QtControlBase<T: controls::Control + Sized> {
     _marker: marker::PhantomData<T>,
 }
 
-impl <T: controls::Control + Sized> QtControlBase<T> {
-	pub fn with_params<F>(widget: *mut QWidget, event_callback: F) -> QtControlBase<T>
+impl <T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> QtControlBase<T, Q> {
+	pub fn with_params<F>(widget: CppBox<Q>, event_callback: F) -> QtControlBase<T,Q>
 			where F: for<'a,'b> FnMut(&'a mut QObject,&'b QEvent) -> bool {
 		let mut base = QtControlBase {
-        	widget: unsafe {CppBox::new(widget)},
+        	widget: widget,
         	event_callback: CustomEventFilter::new(event_callback),
         	coords: None,
             measured_size: (0, 0),
             dirty: true,
             _marker: marker::PhantomData,
         };
-		base.widget.set_size_policy((QPolicy::Ignored, QPolicy::Ignored));
-        base.widget.set_minimum_size((1,1));
+		base.widget.as_mut().static_cast_mut().set_size_policy((QPolicy::Ignored, QPolicy::Ignored));
+        base.widget.as_mut().static_cast_mut().set_minimum_size((1,1));
         unsafe {
         	let filter: *mut QObject = base.event_callback.static_cast_mut() as *mut QObject;
-        	let qobject: &mut QObject = base.widget.as_mut().static_cast_mut();
+        	let qobject: &mut QObject = base.widget.as_mut().static_cast_mut().static_cast_mut();
         	qobject.install_event_filter(filter);
         }
         base
 	}
+	pub fn as_qwidget(&self) -> &QWidget {
+	    self.widget.as_ref().static_cast()
+	} 
+	pub fn as_qwidget_mut(&mut self) -> &mut QWidget {
+	    self.widget.as_mut().static_cast_mut()
+	}
 	pub fn invalidate(&mut self) {
 		use qt_core::cpp_utils::StaticCast;
 		
-		let parent_widget = self.widget.as_mut().parent_widget();
+		let parent_widget = self.widget.as_mut().static_cast_mut().parent_widget();
 		if parent_widget.is_null() {
 			return;
 		}
 		if let Some(mparent) = cast_qobject_to_base_mut((unsafe { &mut *parent_widget }).static_cast_mut() as &mut QObject) {
 			let (pw, ph) = mparent.as_member().size();
-			let this = cast_qobject_to_uimember_mut::<T>(self.widget.as_mut().static_cast_mut()).unwrap();
+			let this = cast_qobject_to_uimember_mut::<T>(self.widget.as_mut().static_cast_mut().static_cast_mut()).unwrap();
 			let (_,_,changed) = this.measure(pw, ph);
 			this.draw(None);		
 					
@@ -113,14 +121,14 @@ impl <T: controls::Control + Sized> QtControlBase<T> {
 	}
     pub fn set_visibility(&mut self, visibility: types::Visibility) {
         let widget = self.widget.as_mut();
-        let mut sp_retain = widget.size_policy();
+        let mut sp_retain = widget.static_cast_mut().size_policy();
         sp_retain.set_retain_size_when_hidden(visibility != types::Visibility::Gone);
-        widget.set_size_policy(&sp_retain);
-        widget.set_visible(visibility == types::Visibility::Visible);
+        widget.static_cast_mut().set_size_policy(&sp_retain);
+        widget.static_cast_mut().set_visible(visibility == types::Visibility::Visible);
     }
     pub fn parent(&self) -> Option<&controls::Member> {
         unsafe {
-        	let ptr = ((&*self.widget.as_ref().parent_widget()).static_cast() as &QObject).property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
+        	let ptr = ((&*self.widget.as_ref().static_cast().parent_widget()).static_cast() as &QObject).property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
             if ptr != 0 {
                 let m: &development::MemberBase = mem::transmute(ptr);
             	Some(m.as_member())
@@ -131,7 +139,7 @@ impl <T: controls::Control + Sized> QtControlBase<T> {
     }
     pub fn parent_mut(&mut self) -> Option<&mut controls::Member> {
         unsafe {
-            let ptr = ((&mut *self.widget.as_mut().parent_widget()).static_cast_mut() as &mut QObject).property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
+            let ptr = ((&mut *self.widget.as_mut().static_cast_mut().parent_widget()).static_cast_mut() as &mut QObject).property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
             if ptr != 0 {
                 let m: &mut development::MemberBase = mem::transmute(ptr); 
             	Some(m.as_member_mut())
@@ -142,7 +150,7 @@ impl <T: controls::Control + Sized> QtControlBase<T> {
     }
     pub fn root(&self) -> Option<&controls::Member> {
         unsafe {
-            let ptr = ((&*self.widget.as_ref().window()).static_cast() as &QObject).property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
+            let ptr = ((&*self.widget.as_ref().static_cast().window()).static_cast() as &QObject).property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
             if ptr != 0 {
             	let m: &development::MemberBase = mem::transmute(ptr); 
             	Some(m.as_member())
@@ -153,7 +161,7 @@ impl <T: controls::Control + Sized> QtControlBase<T> {
     }
     pub fn root_mut(&mut self) -> Option<&mut controls::Member> {
         unsafe {
-            let ptr = ((&mut *self.widget.as_mut().window()).static_cast_mut() as &mut QObject).property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
+            let ptr = ((&mut *self.widget.as_mut().static_cast_mut().window()).static_cast_mut() as &mut QObject).property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
             if ptr != 0 {
             	let m: &mut development::MemberBase = mem::transmute(ptr); 
             	Some(m.as_member_mut())

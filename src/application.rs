@@ -2,7 +2,7 @@ use super::*;
 use super::common::*;
 
 use qt_widgets::application::{Application as QApplication};
-use qt_widgets::main_window::{MainWindow as QMainWindow};
+//use qt_widgets::main_window::{MainWindow as QMainWindow};
 use qt_core::string::String;
 use qt_core::core_application::{CoreApplication as QCoreApplication, CoreApplicationArgs as QCoreApplicationArgs};
 use qt_core::cpp_utils::CppBox;
