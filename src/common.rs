@@ -12,7 +12,8 @@ pub use std::{marker, mem, ops, cmp, ptr};
 pub use std::os::raw::c_void;
 pub use std::ffi::CString;
 
-use plygui_api::{development, types, controls};
+pub use plygui_api::{layout, types, utils, controls, ids, callbacks};
+pub use plygui_api::development::*;
 
 lazy_static! {
 	pub static ref PROPERTY: CString = CString::new("plygui").unwrap();
@@ -59,7 +60,7 @@ impl ops::Deref for QtId {
 impl ops::DerefMut for QtId {
 	fn deref_mut(&mut self) -> &mut Self::Target { unsafe { self.0.as_mut() } }
 }
-impl development::NativeId for QtId {}
+impl NativeId for QtId {}
 
 #[repr(C)]
 pub struct QtControlBase<T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> {
@@ -130,7 +131,7 @@ impl <T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> QtCon
         unsafe {
         	let ptr = ((&*self.widget.as_ref().static_cast().parent_widget()).static_cast() as &QObject).property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
             if ptr != 0 {
-                let m: &development::MemberBase = mem::transmute(ptr);
+                let m: &MemberBase = mem::transmute(ptr);
             	Some(m.as_member())
             } else {
             	None
@@ -141,7 +142,7 @@ impl <T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> QtCon
         unsafe {
             let ptr = ((&mut *self.widget.as_mut().static_cast_mut().parent_widget()).static_cast_mut() as &mut QObject).property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
             if ptr != 0 {
-                let m: &mut development::MemberBase = mem::transmute(ptr); 
+                let m: &mut MemberBase = mem::transmute(ptr); 
             	Some(m.as_member_mut())
             } else {
             	None
@@ -152,7 +153,7 @@ impl <T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> QtCon
         unsafe {
             let ptr = ((&*self.widget.as_ref().static_cast().window()).static_cast() as &QObject).property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
             if ptr != 0 {
-            	let m: &development::MemberBase = mem::transmute(ptr); 
+            	let m: &MemberBase = mem::transmute(ptr); 
             	Some(m.as_member())
             } else {
             	None
@@ -163,7 +164,7 @@ impl <T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> QtCon
         unsafe {
             let ptr = ((&mut *self.widget.as_mut().static_cast_mut().window()).static_cast_mut() as &mut QObject).property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
             if ptr != 0 {
-            	let m: &mut development::MemberBase = mem::transmute(ptr); 
+            	let m: &mut MemberBase = mem::transmute(ptr); 
             	Some(m.as_member_mut())
             } else {
             	None
@@ -203,9 +204,9 @@ pub fn cast_qobject_to_uimember_mut<'a, T>(object: &'a mut QObject) -> Option<&'
 pub fn cast_qobject_to_uimember<'a, T>(object: &'a QObject) -> Option<&'a T> where T: controls::Member + Sized {
 	cast_qobject(object)
 }
-pub fn cast_qobject_to_base_mut<'a>(object: &'a mut QObject) -> Option<&'a mut development::MemberBase> {
+pub fn cast_qobject_to_base_mut<'a>(object: &'a mut QObject) -> Option<&'a mut MemberBase> {
 	cast_qobject_mut(object)
 }
-pub fn cast_qobject_to_base<'a>(object: &'a QObject) -> Option<&'a development::MemberBase> {
+pub fn cast_qobject_to_base<'a>(object: &'a QObject) -> Option<&'a MemberBase> {
 	cast_qobject(object)
 }

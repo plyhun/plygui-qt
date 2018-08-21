@@ -4,9 +4,6 @@ use super::common::*;
 use qt_widgets::main_window::{MainWindow as QMainWindow};
 use qt_widgets::application::{Application as QApplication};
 
-use plygui_api::{controls, ids, types, utils, layout};
-use plygui_api::development::*;
-
 use std::borrow::Cow;
 
 pub type Window = Member<SingleContainer<QtWindow>>;
@@ -14,8 +11,6 @@ pub type Window = Member<SingleContainer<QtWindow>>;
 #[repr(C)]
 pub struct QtWindow {
 	window: CppBox<QMainWindow>,
-    gravity_horizontal: layout::Gravity,
-    gravity_vertical: layout::Gravity,
     child: Option<Box<controls::Control>>,
     filter: CppBox<CustomEventFilter>,
 }
@@ -40,8 +35,6 @@ impl WindowInner for QtWindow {
 	    let mut window = Box::new(Member::with_inner(SingleContainer::with_inner(QtWindow {
 	        window: QMainWindow::new(),
 	        child: None,
-	        gravity_horizontal: Default::default(),
-	        gravity_vertical: Default::default(),
 	        filter: CustomEventFilter::new(event_handler),
         }, ()), MemberFunctions::new(_as_any, _as_any_mut, _as_member, _as_member_mut)));
         unsafe {
@@ -122,16 +115,6 @@ impl ContainerInner for QtWindow {
             }
         }
         None
-    }
-    fn gravity(&self) -> (layout::Gravity, layout::Gravity) {
-    	(self.gravity_horizontal, self.gravity_vertical)
-    }
-    fn set_gravity(&mut self, _: &mut MemberBase, w: layout::Gravity, h: layout::Gravity) {
-    	if self.gravity_horizontal != w || self.gravity_vertical != h {
-    		self.gravity_horizontal = w;
-    		self.gravity_vertical = h;
-    		//self.redraw();
-    	}
     }
 }
 

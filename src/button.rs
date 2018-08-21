@@ -7,13 +7,8 @@ use qt_core::connection::Signal;
 use qt_gui::font_metrics::{FontMetrics as QFontMetrics};
 use qt_widgets::push_button::{PushButton as QPushButton};
 
-use plygui_api::{layout, types, callbacks, controls};
-use plygui_api::development::*;
-
 use std::borrow::Cow;
 use std::cmp::max;
-
-const DEFAULT_PADDING: i32 = 6;
 
 pub type Button = Member<Control<QtButton>>;
 
@@ -59,7 +54,7 @@ impl ClickableInner for QtButton {
 
 impl ButtonInner for QtButton {
     fn with_label(label: &str) -> Box<Button> {
-        use plygui_api::controls::{HasLabel, HasLayout};
+        use plygui_api::controls::HasLabel;
         
         let mut btn = Box::new(Member::with_inner(Control::with_inner(QtButton {
                      base: common::QtControlBase::with_params(
@@ -77,7 +72,6 @@ impl ButtonInner for QtButton {
             let btn1 = btn.as_inner_mut().as_inner_mut().base.widget.as_mut() as *mut QPushButton;
             (&mut *btn1).signals().released().connect(&btn.as_inner_mut().as_inner_mut().h_left_clicked.1);
         }
-        btn.set_layout_padding(layout::BoundarySize::AllTheSame(DEFAULT_PADDING).into());
         btn.set_label(label);
         btn
     }
@@ -102,13 +96,13 @@ impl ControlInner for QtButton {
     fn root_mut(&mut self) -> Option<&mut controls::Member> {
         self.base.root_mut()
     }
-    fn on_added_to_container(&mut self, base: &mut MemberControlBase, parent: &controls::Container, x: i32, y: i32) {
+    fn on_added_to_container(&mut self, member: &mut MemberBase, control: &mut ControlBase, parent: &controls::Container, x: i32, y: i32) {
     	let (pw, ph) = parent.draw_area_size();
-        self.measure(base, pw, ph);
+        self.measure(member, control, pw, ph);
         self.base.dirty = false;
-        self.draw(base, Some((x, y)));
+        self.draw(member, control, Some((x, y)));
     }
-    fn on_removed_from_container(&mut self, _: &mut MemberControlBase, _: &controls::Container) {}	
+    fn on_removed_from_container(&mut self, _member: &mut MemberBase, _control: &mut ControlBase, _: &controls::Container) {}	
     
     #[cfg(feature = "markup")]
     fn fill_from_markup(&mut self, markup: &plygui_api::markup::Markup, registry: &mut plygui_api::markup::MarkupRegistry) {
@@ -138,30 +132,26 @@ impl MemberInner for QtButton {
 }
 
 impl Drawable for QtButton {
-	fn draw(&mut self, base: &mut MemberControlBase, coords: Option<(i32, i32)>) {
+	fn draw(&mut self, _member: &mut MemberBase, _control: &mut ControlBase, coords: Option<(i32, i32)>) {
     	if coords.is_some() {
     		self.base.coords = coords;
     	}
     	if let Some(coords) = self.base.coords {
-			let (lm,tm,rm,bm) = base.control.layout.margin.into();
-	        self.base.widget.as_mut().move_((coords.0 as i32 + lm, coords.1 as i32 + tm));
+			self.base.widget.as_mut().move_((coords.0 as i32, coords.1 as i32));
 			self.base.widget.as_mut().set_fixed_size(
-				(self.base.measured_size.0 as i32 - lm - rm, self.base.measured_size.1 as i32 - rm - bm)
+				(self.base.measured_size.0 as i32, self.base.measured_size.1 as i32)
 			);
 		}
     }
-    fn measure(&mut self, base: &mut MemberControlBase, parent_width: u16, parent_height: u16) -> (u16, u16, bool) {
+    fn measure(&mut self, member: &mut MemberBase, control: &mut ControlBase, parent_width: u16, parent_height: u16) -> (u16, u16, bool) {
     	let old_size = self.base.measured_size;
-    	self.base.measured_size = match base.member.visibility {
+    	self.base.measured_size = match member.visibility {
             types::Visibility::Gone => (0, 0),
             _ => {
-                let (lp,tp,rp,bp) = base.control.layout.padding.into();
-		    	let (lm,tm,rm,bm) = base.control.layout.margin.into();
-		    	    	
-		    	let font = self.base.widget.as_ref().font();
+                let font = self.base.widget.as_ref().font();
 		    	
 		        let mut label_size = QRect::new((0,0,0,0));
-                let w = match base.control.layout.width {
+                let w = match control.layout.width {
                     layout::Size::MatchParent => parent_width as i32,
                     layout::Size::Exact(w) => w as i32,
                     layout::Size::WrapContent => {
@@ -169,10 +159,10 @@ impl Drawable for QtButton {
                         	let mut fm = QFontMetrics::new(font);
                         	label_size = fm.bounding_rect(&self.base.widget.as_ref().text());							
                         }
-                        label_size.width() + lp + rp + lm + rm + 16
+                        label_size.width() + 16
                     } 
                 };
-                let h = match base.control.layout.height {
+                let h = match control.layout.height {
                     layout::Size::MatchParent => parent_height as i32,
                     layout::Size::Exact(h) => h as i32,
                     layout::Size::WrapContent => {
@@ -180,7 +170,7 @@ impl Drawable for QtButton {
                             let mut fm = QFontMetrics::new(font);
                         	label_size = fm.bounding_rect(&self.base.widget.as_ref().text());	
                         }
-                        label_size.height() + tp + bp + tm + bm
+                        label_size.height() + 16
                     } 
                 };
                 (max(0, w) as u16, max(0, h) as u16)
@@ -193,7 +183,7 @@ impl Drawable for QtButton {
             self.base.dirty,
         )
     }
-    fn invalidate(&mut self, base: &mut MemberControlBase) {
+    fn invalidate(&mut self, _member: &mut MemberBase, _control: &mut ControlBase) {
         self.base.invalidate()
     }
 }
