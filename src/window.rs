@@ -1,8 +1,8 @@
-use super::*;
 use super::common::*;
+use super::*;
 
-use qt_widgets::main_window::{MainWindow as QMainWindow};
-use qt_widgets::application::{Application as QApplication};
+use qt_widgets::application::Application as QApplication;
+use qt_widgets::main_window::MainWindow as QMainWindow;
 
 use std::borrow::Cow;
 
@@ -10,78 +10,90 @@ pub type Window = Member<SingleContainer<QtWindow>>;
 
 #[repr(C)]
 pub struct QtWindow {
-	window: CppBox<QMainWindow>,
+    window: CppBox<QMainWindow>,
     child: Option<Box<controls::Control>>,
     filter: CppBox<CustomEventFilter>,
 }
 
 impl HasLabelInner for QtWindow {
-	fn label<'a>(&'a self) -> Cow<'a, str> {
-		let name = (&*self.window.as_ref()).window_title().to_utf8();
+    fn label<'a>(&'a self) -> Cow<'a, str> {
+        let name = (&*self.window.as_ref()).window_title().to_utf8();
         unsafe {
-	      let bytes = std::slice::from_raw_parts(name.const_data() as *const u8, name.count(()) as usize);
-	      Cow::Owned(std::str::from_utf8_unchecked(bytes).to_owned())
-	    }
-	}
+            let bytes = std::slice::from_raw_parts(name.const_data() as *const u8, name.count(()) as usize);
+            Cow::Owned(std::str::from_utf8_unchecked(bytes).to_owned())
+        }
+    }
     fn set_label(&mut self, _: &mut MemberBase, label: &str) {
-    	self.window.set_window_title(&QString::from_std_str(label));        
+        self.window.set_window_title(&QString::from_std_str(label));
     }
 }
 
 impl WindowInner for QtWindow {
-	fn with_params(title: &str, start_size: types::WindowStartSize, _menu: types::WindowMenu) -> Box<Member<SingleContainer<Self>>> {
-	    use plygui_api::controls::HasLabel;
-	    
-	    let mut window = Box::new(Member::with_inner(SingleContainer::with_inner(QtWindow {
-	        window: QMainWindow::new(),
-	        child: None,
-	        filter: CustomEventFilter::new(event_handler),
-        }, ()), MemberFunctions::new(_as_any, _as_any_mut, _as_member, _as_member_mut)));
+    fn with_params(title: &str, start_size: types::WindowStartSize, _menu: types::WindowMenu) -> Box<Member<SingleContainer<Self>>> {
+        use plygui_api::controls::HasLabel;
+
+        let mut window = Box::new(Member::with_inner(
+            SingleContainer::with_inner(
+                QtWindow {
+                    window: QMainWindow::new(),
+                    child: None,
+                    filter: CustomEventFilter::new(event_handler),
+                },
+                (),
+            ),
+            MemberFunctions::new(_as_any, _as_any_mut, _as_member, _as_member_mut),
+        ));
         unsafe {
-        	let ptr = window.as_ref() as *const _ as u64;
-        	(window.as_inner_mut().as_inner_mut().window.as_mut().static_cast_mut() as &mut QObject).set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::new0(ptr));
+            let ptr = window.as_ref() as *const _ as u64;
+            (window.as_inner_mut().as_inner_mut().window.as_mut().static_cast_mut() as &mut QObject).set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::new0(ptr));
         }
         window.set_label(title);
         {
             let window = window.as_inner_mut().as_inner_mut();
             window.window.resize(match start_size {
-    	        types::WindowStartSize::Exact(w, h) => {
-    		        (w as i32, h as i32)
-    	        }
-    	        types::WindowStartSize::Fullscreen => {
-    		        let screen = unsafe { (*QApplication::desktop()).screen_geometry(()) };
-    		        (screen.width(), screen.height())
-    	        }
+                types::WindowStartSize::Exact(w, h) => (w as i32, h as i32),
+                types::WindowStartSize::Fullscreen => {
+                    let screen = unsafe { (*QApplication::desktop()).screen_geometry(()) };
+                    (screen.width(), screen.height())
+                }
             });
             window.window.set_size_policy((QPolicy::Ignored, QPolicy::Ignored));
-            window.window.set_minimum_size((1,1));
+            window.window.set_minimum_size((1, 1));
             unsafe {
-            	let filter: *mut QObject = window.filter.static_cast_mut() as *mut QObject;
-            	let qobject: &mut QObject = window.window.as_mut().static_cast_mut();
-            	qobject.install_event_filter(filter);
+                let filter: *mut QObject = window.filter.static_cast_mut() as *mut QObject;
+                let qobject: &mut QObject = window.window.as_mut().static_cast_mut();
+                qobject.install_event_filter(filter);
             }
             window.window.show();
-    	}
+        }
         window
-	}
+    }
 }
 
 impl SingleContainerInner for QtWindow {
-	fn set_child(&mut self, base: &mut MemberBase, mut child: Option<Box<controls::Control>>) -> Option<Box<controls::Control>> {
-		let mut old = self.child.take();
+    fn set_child(&mut self, base: &mut MemberBase, mut child: Option<Box<controls::Control>>) -> Option<Box<controls::Control>> {
+        let mut old = self.child.take();
+        let (w, h) = self.size();
+        let margins = self.window.contents_margins();
         if let Some(old) = old.as_mut() {
-            old.on_removed_from_container(unsafe { utils::base_to_impl_mut::<Window>(base) } );
+            old.on_removed_from_container(unsafe { utils::base_to_impl_mut::<Window>(base) });
         }
         if let Some(new) = child.as_mut() {
-        	unsafe {
-        		let mut widget = common::cast_control_to_qwidget_mut(new.as_mut());		
-				self.window.as_mut().set_central_widget(widget);
-        	}
-            new.on_added_to_container(unsafe { utils::base_to_impl_mut::<Window>(base) }, 0, 0);
+            unsafe {
+                let mut widget = common::cast_control_to_qwidget_mut(new.as_mut());
+                self.window.as_mut().set_central_widget(widget);
+            }
+            new.on_added_to_container(
+                unsafe { utils::base_to_impl_mut::<Window>(base) },
+                0,
+                0,
+                utils::coord_to_size(cmp::max(0, w as i32 - margins.left() - margins.right())),
+                utils::coord_to_size(cmp::max(0, h as i32 - margins.top() - margins.bottom())),
+            );
         } else {
-        	unsafe {
-        		self.window.as_mut().set_central_widget(QWidget::new().into_raw());
-        	}
+            unsafe {
+                self.window.as_mut().set_central_widget(QWidget::new().into_raw());
+            }
         }
         self.child = child;
 
@@ -133,7 +145,7 @@ impl MemberInner for QtWindow {
         let size = self.window.size();
         (size.width() as u16, size.height() as u16)
     }
-    
+
     unsafe fn native_id(&self) -> Self::Id {
         QtId::from(self.window.static_cast() as *const QWidget as *mut QWidget)
     }
@@ -146,20 +158,20 @@ impl Drop for QtWindow {
 }
 
 fn event_handler(object: &mut QObject, event: &QEvent) -> bool {
-	match event.type_() {
-		QEventType::Resize => {
-		    if let Some(window) = common::cast_qobject_to_uimember_mut::<Window>(object) {
-		        let (width,height) = window.as_inner().as_inner().size();
-				if let Some(ref mut child) = window.as_inner_mut().as_inner_mut().child {
-	                child.measure(width, height);
-	                child.draw(Some((0, 0)));
-	            }
-				window.call_on_resize(width, height);
-		    }
-		},
-		_ => {},
-	} 
-	false
+    match event.type_() {
+        QEventType::Resize => {
+            if let Some(window) = common::cast_qobject_to_uimember_mut::<Window>(object) {
+                let (width, height) = window.as_inner().as_inner().size();
+                if let Some(ref mut child) = window.as_inner_mut().as_inner_mut().child {
+                    child.measure(width, height);
+                    child.draw(Some((0, 0)));
+                }
+                window.call_on_resize(width, height);
+            }
+        }
+        _ => {}
+    }
+    false
 }
 
 impl_all_defaults!(Window);
