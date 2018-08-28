@@ -4,7 +4,6 @@ use super::*;
 use qt_core::list::ListCInt;
 use qt_core::slots::SlotCInt;
 use qt_widgets::box_layout::BoxLayout as QBoxLayout;
-use qt_widgets::layout::{Layout, SizeConstraint};
 use qt_widgets::splitter::Splitter as QSplitter;
 
 pub type Splitted = Member<Control<MultiContainer<QtSplitted>>>;
@@ -80,24 +79,6 @@ impl SplittedInner for QtSplitted {
 }
 
 impl QtSplitted {
-    fn update_children_orienation(&mut self) {
-        let first = self.first.size();
-        let second = self.second.size();
-        match self.layout_orientation() {
-            layout::Orientation::Horizontal => {
-                common::cast_control_to_qwidget_mut(self.first_mut()).set_minimum_width(1);
-                common::cast_control_to_qwidget_mut(self.second_mut()).set_minimum_width(1);
-                common::cast_control_to_qwidget_mut(self.first_mut()).set_fixed_height(first.1 as i32);
-                common::cast_control_to_qwidget_mut(self.second_mut()).set_fixed_height(second.1 as i32);
-            }
-            layout::Orientation::Vertical => {
-                common::cast_control_to_qwidget_mut(self.first_mut()).set_fixed_width(first.0 as i32);
-                common::cast_control_to_qwidget_mut(self.second_mut()).set_fixed_width(second.0 as i32);
-                common::cast_control_to_qwidget_mut(self.first_mut()).set_minimum_height(1);
-                common::cast_control_to_qwidget_mut(self.second_mut()).set_minimum_height(1);
-            }
-        }
-    }
     fn children_sizes(&self) -> (u16, u16) {
         let (w, h) = self.size();
         let o = self.layout_orientation();
@@ -165,8 +146,8 @@ impl MemberInner for QtSplitted {
 }
 
 impl Drawable for QtSplitted {
-    fn draw(&mut self, _member: &mut MemberBase, _control: &mut ControlBase, coords: Option<(i32, i32)>) {
-        self.base.draw(coords);
+    fn draw(&mut self, member: &mut MemberBase, control: &mut ControlBase, coords: Option<(i32, i32)>) {
+        self.base.draw(member, control, coords);
         for child in [self.first.as_mut(), self.second.as_mut()].iter_mut() {
             child.draw(Some((0, 0)));
         }

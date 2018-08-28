@@ -185,8 +185,8 @@ impl MemberInner for QtFrame {
 }
 
 impl Drawable for QtFrame {
-    fn draw(&mut self, _member: &mut MemberBase, _control: &mut ControlBase, coords: Option<(i32, i32)>) {
-        self.base.draw(coords);
+    fn draw(&mut self, member: &mut MemberBase, control: &mut ControlBase, coords: Option<(i32, i32)>) {
+        self.base.draw(member, control, coords);
         if let Some(ref mut child) = self.child {
             child.draw(Some((0, 0)));
         }

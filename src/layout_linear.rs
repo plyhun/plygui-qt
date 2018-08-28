@@ -70,8 +70,8 @@ impl MemberInner for QtLinearLayout {
 }
 
 impl Drawable for QtLinearLayout {
-    fn draw(&mut self, _member: &mut MemberBase, _control: &mut ControlBase, coords: Option<(i32, i32)>) {
-        self.base.draw(coords);
+    fn draw(&mut self, member: &mut MemberBase, control: &mut ControlBase, coords: Option<(i32, i32)>) {
+        self.base.draw(member, control, coords);
         for child in self.children.as_mut_slice() {
             child.draw(Some((0, 0)));
         }

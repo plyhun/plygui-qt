@@ -93,7 +93,7 @@ impl<T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> QtCont
             dirty: true,
             _marker: marker::PhantomData,
         };
-        base.widget.as_mut().static_cast_mut().set_size_policy((QPolicy::Fixed, QPolicy::Fixed));
+        //base.widget.as_mut().static_cast_mut().set_size_policy((QPolicy::Fixed, QPolicy::Fixed));
         base.widget.as_mut().static_cast_mut().set_minimum_size((1, 1));
         unsafe {
             let filter: *mut QObject = base.event_callback.static_cast_mut() as *mut QObject;
@@ -108,13 +108,28 @@ impl<T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> QtCont
     pub fn as_qwidget_mut(&mut self) -> &mut QWidget {
         self.widget.as_mut().static_cast_mut()
     }
-    pub fn draw(&mut self, coords: Option<(i32, i32)>) {
+    pub fn draw(&mut self, _member: &mut MemberBase, control: &mut ControlBase, coords: Option<(i32, i32)>) {
         if coords.is_some() {
             self.coords = coords;
         }
         if let Some(coords) = self.coords {
             self.widget.static_cast_mut().move_((coords.0 as i32, coords.1 as i32));
-            self.widget.static_cast_mut().set_fixed_size((self.measured_size.0 as i32, self.measured_size.1 as i32));
+            match control.layout.width {
+                layout::Size::MatchParent => {
+                    self.widget.static_cast_mut().set_minimum_width(1);
+                },
+                _ => {
+                    self.widget.static_cast_mut().set_fixed_width(self.measured_size.0 as i32);
+                }
+            }
+            match control.layout.height {
+                layout::Size::MatchParent => {
+                    self.widget.static_cast_mut().set_minimum_height(1);
+                },
+                _ => {
+                    self.widget.static_cast_mut().set_fixed_height(self.measured_size.1 as i32);
+                }
+            }
         }
     }
     pub fn invalidate(&mut self) {
