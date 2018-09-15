@@ -14,6 +14,7 @@ pub type Frame = Member<Control<SingleContainer<QtFrame>>>;
 pub struct QtFrame {
     base: common::QtControlBase<Frame, QGroupBox>,
     layout: CppBox<QStackedLayout>,
+    label_size: QRect,
     child: Option<Box<controls::Control>>,
 }
 
@@ -25,6 +26,7 @@ impl FrameInner for QtFrame {
                     QtFrame {
                         base: common::QtControlBase::with_params(QGroupBox::new(&QString::from_std_str(label)), event_handler),
                         layout: QStackedLayout::new(),
+                        label_size: QRect::new((0, 0, 0, 0)),
                         child: None,
                     },
                     (),
@@ -46,14 +48,16 @@ impl FrameInner for QtFrame {
 }
 impl Drop for QtFrame {
     fn drop(&mut self) {
-        let qo = self.base.widget.as_mut().static_cast_mut() as *mut QObject;
-        let mut child = self.child.take();
-        if let Some(ref mut child) = child {
-            if let Some(self2) = common::cast_qobject_to_uimember_mut::<LinearLayout>(unsafe { &mut *qo }) {
-                child.on_removed_from_container(self2);
+        if !self.base.widget.is_null() {
+            let qo = self.base.widget.as_mut().static_cast_mut() as *mut QObject;
+            let mut child = self.child.take();
+            if let Some(ref mut child) = child {
+                if let Some(self2) = common::cast_qobject_to_uimember_mut::<Frame>(unsafe { &mut *qo }) {
+                    child.on_removed_from_container(self2);
+                }
             }
+            //self.layout = CppBox::default();
         }
-        self.layout = CppBox::default();
     }
 }
 impl SingleContainerInner for QtFrame {
@@ -187,8 +191,9 @@ impl MemberInner for QtFrame {
 impl Drawable for QtFrame {
     fn draw(&mut self, member: &mut MemberBase, control: &mut ControlBase, coords: Option<(i32, i32)>) {
         self.base.draw(member, control, coords);
+        let margins = self.layout.as_ref().contents_margins();
         if let Some(ref mut child) = self.child {
-            child.draw(Some((0, 0)));
+            child.draw(Some((margins.left(), margins.top() + self.label_size.height())));
         }
     }
     fn measure(&mut self, member: &mut MemberBase, control: &mut ControlBase, parent_width: u16, parent_height: u16) -> (u16, u16, bool) {
@@ -199,44 +204,44 @@ impl Drawable for QtFrame {
             _ => {
                 let font = self.base.widget.as_ref().font();
 
-                let mut label_size = QRect::new((0, 0, 0, 0));
                 let mut measured = false;
+                self.label_size = QRect::new((0,0,0,0));
                 let w = match control.layout.width {
                     layout::Size::MatchParent => parent_width as i32,
                     layout::Size::Exact(w) => w as i32,
                     layout::Size::WrapContent => {
-                        if label_size.width() < 1 {
+                        let mut w = 0;
+                        if self.label_size.width() < 1 {
                             let mut fm = QFontMetrics::new(font);
-                            label_size = fm.bounding_rect(&self.base.widget.as_ref().title());
+                            self.label_size = fm.bounding_rect(&self.base.widget.as_ref().title());
                         }
                         if let Some(ref mut child) = self.child {
-                            let (cw, _, _) = child.measure(cmp::max(0, parent_width as i32 - lm + 2) as u16, cmp::max(0, parent_height as i32 - tm - bm) as u16);
-                            let w = label_size.width();
-                            label_size.set_width(w + cw as i32 + lm + rm);
+                            let (cw, _, _) = child.measure(cmp::max(0, parent_width as i32 - lm - rm) as u16, cmp::max(0, parent_height as i32 - tm - bm) as u16);
+                            w = cw as i32 + lm + rm;
                             measured = true;
                         }
-                        label_size.width()
+                        w
                     }
                 };
                 let h = match control.layout.height {
                     layout::Size::MatchParent => parent_height as i32,
                     layout::Size::Exact(h) => h as i32,
                     layout::Size::WrapContent => {
-                        if label_size.height() < 1 {
+                        let mut h = 0;
+                        if self.label_size.height() < 1 {
                             let mut fm = QFontMetrics::new(font);
-                            label_size = fm.bounding_rect(&self.base.widget.as_ref().title());
+                            self.label_size = fm.bounding_rect(&self.base.widget.as_ref().title());
                         }
                         if let Some(ref mut child) = self.child {
                             let ch = if measured {
                                 child.size().1
                             } else {
-                                let (_, ch, _) = child.measure(cmp::max(0, parent_width as i32 - lm + 2) as u16, cmp::max(0, parent_height as i32 - tm - bm) as u16);
+                                let (_, ch, _) = child.measure(cmp::max(0, parent_width as i32 - lm - rm) as u16, cmp::max(0, parent_height as i32 - tm - bm) as u16);
                                 ch
                             };
-                            let h = label_size.height();
-                            label_size.set_height(h + ch as i32 + tm + bm);
+                            h = self.label_size.height() + ch as i32 + tm + bm;
                         }
-                        label_size.height()
+                        h
                     }
                 };
                 (cmp::max(0, w) as u16, cmp::max(0, h) as u16)
@@ -266,7 +271,13 @@ fn event_handler(object: &mut QObject, event: &QEvent) -> bool {
                     fr.call_on_resize(width, height);
                 }
             }
-        }
+        },
+        QEventType::Destroy => {
+            if let Some(ll) = cast_qobject_to_uimember_mut::<Frame>(object) {
+                unsafe { ptr::write(&mut ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget, CppBox::new(ptr::null_mut())); }
+                unsafe { ptr::write(&mut ll.as_inner_mut().as_inner_mut().as_inner_mut().layout, CppBox::new(ptr::null_mut())); }
+            }
+        },
         _ => {}
     }
     false

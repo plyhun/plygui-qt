@@ -117,7 +117,7 @@ impl<T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> QtCont
             match control.layout.width {
                 layout::Size::MatchParent => {
                     self.widget.static_cast_mut().set_minimum_width(1);
-                },
+                }
                 _ => {
                     self.widget.static_cast_mut().set_fixed_width(self.measured_size.0 as i32);
                 }
@@ -125,7 +125,7 @@ impl<T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> QtCont
             match control.layout.height {
                 layout::Size::MatchParent => {
                     self.widget.static_cast_mut().set_minimum_height(1);
-                },
+                }
                 _ => {
                     self.widget.static_cast_mut().set_fixed_height(self.measured_size.1 as i32);
                 }
@@ -203,14 +203,6 @@ impl<T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> QtCont
             } else {
                 None
             }
-        }
-    }
-}
-
-impl<T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> Drop for QtControlBase<T, Q> {
-    fn drop(&mut self) {
-        unsafe {
-            self.widget.static_cast_mut().set_parent(ptr::null_mut());
         }
     }
 }

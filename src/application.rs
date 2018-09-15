@@ -29,7 +29,7 @@ impl development::ApplicationInner for QtApplication {
         Box::new(development::Application::with_inner(QtApplication { inner: inner, windows: Vec::with_capacity(1) }, ()))
     }
     fn new_window(&mut self, title: &str, size: types::WindowStartSize, menu: types::WindowMenu) -> Box<controls::Window> {
-        let w = Window::with_params(title, size, menu);
+        let w = super::window::Window::with_params(title, size, menu);
         self.windows.push(unsafe { w.native_id().into() });
         w
     }

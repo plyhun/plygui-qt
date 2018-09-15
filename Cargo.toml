@@ -8,7 +8,7 @@ name = "plygui_qt"
 path = "src/lib.rs"
 
 [dependencies]
-plygui-api = {version = "0.0.1", path = "../plygui-api"}
+plygui-api = {version = "0.0.1", path = "../plygui/src/api"}
 qt_core = {version = "~0.2"}
 qt_gui = {version = "~0.2"}
 qt_widgets = {version = "~0.2"}
