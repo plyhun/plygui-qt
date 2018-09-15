@@ -92,7 +92,7 @@ impl ControlInner for QtButton {
     fn root_mut(&mut self) -> Option<&mut controls::Member> {
         self.base.root_mut()
     }
-    fn on_added_to_container(&mut self, member: &mut MemberBase, control: &mut ControlBase, parent: &controls::Container, x: i32, y: i32, pw: u16, ph: u16) {
+    fn on_added_to_container(&mut self, member: &mut MemberBase, control: &mut ControlBase, _parent: &controls::Container, x: i32, y: i32, pw: u16, ph: u16) {
         self.measure(member, control, pw, ph);
         self.base.dirty = false;
         self.draw(member, control, Some((x, y)));

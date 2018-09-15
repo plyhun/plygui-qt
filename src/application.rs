@@ -16,7 +16,7 @@ use std::process::exit;
 pub type Application = development::Application<QtApplication>;
 
 pub struct QtApplication {
-    inner: CppBox<QApplication>,
+    _inner: CppBox<QApplication>,
     windows: Vec<QtId>,
 }
 
@@ -26,7 +26,7 @@ impl development::ApplicationInner for QtApplication {
 
         let inner = unsafe { QApplication::new(QCoreApplicationArgs::from_real().get()) };
         QCoreApplication::set_application_name(&String::from_std_str(name));
-        Box::new(development::Application::with_inner(QtApplication { inner: inner, windows: Vec::with_capacity(1) }, ()))
+        Box::new(development::Application::with_inner(QtApplication { _inner: inner, windows: Vec::with_capacity(1) }, ()))
     }
     fn new_window(&mut self, title: &str, size: types::WindowStartSize, menu: types::WindowMenu) -> Box<controls::Window> {
         let w = super::window::Window::with_params(title, size, menu);
