@@ -74,14 +74,14 @@ impl MemberInner for QtLinearLayout {
 impl Drawable for QtLinearLayout {
     fn draw(&mut self, member: &mut MemberBase, control: &mut ControlBase, coords: Option<(i32, i32)>) {
         self.base.draw(member, control, coords);
-        
+
         let orientation = self.layout_orientation();
         let margins = self.base.widget.contents_margins();
         let mut x = margins.left();
         let mut y = margins.top();
         let spacing = self.layout.as_ref().spacing();
         for child in self.children.as_mut_slice() {
-            child.draw(Some((x,y)));
+            child.draw(Some((x, y)));
             let (xx, yy) = child.size();
             match orientation {
                 layout::Orientation::Horizontal => x += xx as i32 + spacing,
@@ -187,13 +187,7 @@ impl ControlInner for QtLinearLayout {
         let spacing = self.layout.as_ref().spacing();
         for child in self.children.as_mut_slice() {
             let self2: &mut LinearLayout = unsafe { utils::base_to_impl_mut(member) };
-            child.on_added_to_container(
-                self2,
-                x,
-                y,
-                pw,
-                ph,
-            );
+            child.on_added_to_container(self2, x, y, pw, ph);
             let (xx, yy) = child.size();
             match orientation {
                 layout::Orientation::Horizontal => x += xx as i32 + spacing,
@@ -341,21 +335,21 @@ fn event_handler(object: &mut QObject, event: &QEvent) -> bool {
         QEventType::Resize => {
             if let Some(ll) = cast_qobject_to_uimember_mut::<LinearLayout>(object) {
                 use plygui_api::controls::Member;
-                
-                let (width, height) = ll.size();
-                
-                ll.measure(width, height);
-                ll.draw(None);
 
+                let (width, height) = ll.size();
                 ll.call_on_resize(width, height);
             }
-        },
+        }
         QEventType::Destroy => {
             if let Some(ll) = cast_qobject_to_uimember_mut::<LinearLayout>(object) {
-                unsafe { ptr::write(&mut ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget, CppBox::new(ptr::null_mut())); }
-                unsafe { ptr::write(&mut ll.as_inner_mut().as_inner_mut().as_inner_mut().layout, CppBox::new(ptr::null_mut())); }
+                unsafe {
+                    ptr::write(&mut ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget, CppBox::new(ptr::null_mut()));
+                }
+                unsafe {
+                    ptr::write(&mut ll.as_inner_mut().as_inner_mut().as_inner_mut().layout, CppBox::new(ptr::null_mut()));
+                }
             }
-        },
+        }
         _ => {}
     }
     false

@@ -205,7 +205,7 @@ impl Drawable for QtFrame {
                 let font = self.base.widget.as_ref().font();
 
                 let mut measured = false;
-                self.label_size = QRect::new((0,0,0,0));
+                self.label_size = QRect::new((0, 0, 0, 0));
                 let w = match control.layout.width {
                     layout::Size::MatchParent => parent_width as i32,
                     layout::Size::Exact(w) => w as i32,
@@ -271,13 +271,17 @@ fn event_handler(object: &mut QObject, event: &QEvent) -> bool {
                     fr.call_on_resize(width, height);
                 }
             }
-        },
+        }
         QEventType::Destroy => {
             if let Some(ll) = cast_qobject_to_uimember_mut::<Frame>(object) {
-                unsafe { ptr::write(&mut ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget, CppBox::new(ptr::null_mut())); }
-                unsafe { ptr::write(&mut ll.as_inner_mut().as_inner_mut().as_inner_mut().layout, CppBox::new(ptr::null_mut())); }
+                unsafe {
+                    ptr::write(&mut ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget, CppBox::new(ptr::null_mut()));
+                }
+                unsafe {
+                    ptr::write(&mut ll.as_inner_mut().as_inner_mut().as_inner_mut().layout, CppBox::new(ptr::null_mut()));
+                }
             }
-        },
+        }
         _ => {}
     }
     false

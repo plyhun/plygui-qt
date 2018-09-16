@@ -28,19 +28,19 @@ pub fn register_members(registry: &mut plygui_api::markup::MarkupRegistry) {
 }
 
 pub mod prelude {
-	pub use plygui_api::controls::*;
-	pub use plygui_api::ids::*;
-	pub use plygui_api::types::*;
-	pub use plygui_api::callbacks;
-	pub use plygui_api::layout;
-	pub use plygui_api::utils; 
-	
-	pub mod imp {
-		pub use ::application::Application;
-		pub use ::window::Window;
-		pub use ::button::Button;
-		pub use ::layout_linear::LinearLayout;
-		pub use ::frame::Frame;
-		pub use ::splitted::Splitted;
-	}
+    pub use plygui_api::callbacks;
+    pub use plygui_api::controls::*;
+    pub use plygui_api::ids::*;
+    pub use plygui_api::layout;
+    pub use plygui_api::types::*;
+    pub use plygui_api::utils;
+
+    pub mod imp {
+        pub use application::Application;
+        pub use button::Button;
+        pub use frame::Frame;
+        pub use layout_linear::LinearLayout;
+        pub use splitted::Splitted;
+        pub use window::Window;
+    }
 }

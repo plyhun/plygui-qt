@@ -425,13 +425,10 @@ fn splitter_moved(ll: &mut Splitted, position: i32) {
             position as f32 * 2.0
         },
     };
-    let old_splitter = ll.as_inner_mut().as_inner_mut().as_inner_mut().splitter;
-    if (old_splitter - splitter).abs() > 0.01 {
-        let ll = ll.as_inner_mut().as_inner_mut().as_inner_mut();
-        ll.splitter = splitter;
-        ll.update_children_layout();
-        ll.draw_children();
-    }
+    let ll = ll.as_inner_mut().as_inner_mut().as_inner_mut();
+    ll.splitter = splitter;
+    ll.update_children_layout();
+    ll.draw_children();
 }
 
 fn event_handler(object: &mut QObject, event: &QEvent) -> bool {
@@ -443,12 +440,14 @@ fn event_handler(object: &mut QObject, event: &QEvent) -> bool {
                 let (width, height) = ll.size();
                 ll.call_on_resize(width, height);
             }
-        },
+        }
         QEventType::Destroy => {
             if let Some(ll) = cast_qobject_to_uimember_mut::<Splitted>(object) {
-                unsafe { ptr::write(&mut ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget, CppBox::new(ptr::null_mut())); }
+                unsafe {
+                    ptr::write(&mut ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget, CppBox::new(ptr::null_mut()));
+                }
             }
-        },
+        }
         _ => {}
     }
     false

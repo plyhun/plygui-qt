@@ -186,12 +186,14 @@ fn event_handler(object: &mut QObject, event: &QEvent) -> bool {
                     ll.call_on_resize(width, height);
                 }
             }
-        },
+        }
         QEventType::Destroy => {
             if let Some(ll) = cast_qobject_to_uimember_mut::<Button>(object) {
-                unsafe { ptr::write(&mut ll.as_inner_mut().as_inner_mut().base.widget, CppBox::new(ptr::null_mut())); }
+                unsafe {
+                    ptr::write(&mut ll.as_inner_mut().as_inner_mut().base.widget, CppBox::new(ptr::null_mut()));
+                }
             }
-        },
+        }
         _ => {}
     }
     false

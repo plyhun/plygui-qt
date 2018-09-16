@@ -4,6 +4,7 @@ pub use qt_core::event::{Event as QEvent, Type as QEventType};
 pub use qt_core::flags::Flags;
 pub use qt_core::object::Object as QObject;
 pub use qt_core::qt::Orientation as QOrientation;
+pub use qt_core::size::Size as QSize;
 pub use qt_core::string::String as QString;
 pub use qt_core::variant::Variant as QVariant;
 pub use qt_core_custom_events::custom_event_filter::CustomEventFilter;
