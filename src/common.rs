@@ -13,7 +13,7 @@ pub use qt_widgets::widget::Widget as QWidget;
 
 pub use std::ffi::CString;
 pub use std::os::raw::c_void;
-pub use std::{cmp, marker, mem, ops, ptr};
+pub use std::{cmp, marker, mem, ops, ptr, sync::mpsc};
 
 pub use plygui_api::development::*;
 pub use plygui_api::{callbacks, controls, defaults, ids, layout, types, utils};

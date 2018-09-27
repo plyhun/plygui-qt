@@ -3,16 +3,20 @@ use super::*;
 
 use qt_widgets::application::Application as QApplication;
 use qt_widgets::main_window::MainWindow as QMainWindow;
+use qt_core::timer::Timer;
+use qt_core::slots::SlotNoArgs;
 
 use std::borrow::Cow;
 
-pub type Window = Member<SingleContainer<QtWindow>>;
+pub type Window = Member<SingleContainer<::plygui_api::development::Window<QtWindow>>>;
 
 #[repr(C)]
 pub struct QtWindow {
     window: CppBox<QMainWindow>,
     child: Option<Box<controls::Control>>,
     filter: CppBox<CustomEventFilter>,
+    timer: CppBox<Timer>,
+    queue: SlotNoArgs<'static>,
 }
 
 impl HasLabelInner for QtWindow {
@@ -29,27 +33,33 @@ impl HasLabelInner for QtWindow {
 }
 
 impl WindowInner for QtWindow {
-    fn with_params(title: &str, start_size: types::WindowStartSize, _menu: types::WindowMenu) -> Box<Member<SingleContainer<Self>>> {
+    fn with_params(title: &str, start_size: types::WindowStartSize, _menu: types::WindowMenu) -> Box<Member<SingleContainer<::plygui_api::development::Window<Self>>>> {
         use plygui_api::controls::HasLabel;
 
         let mut window = Box::new(Member::with_inner(
             SingleContainer::with_inner(
-                QtWindow {
-                    window: QMainWindow::new(),
-                    child: None,
-                    filter: CustomEventFilter::new(event_handler),
-                },
+                ::plygui_api::development::Window::with_inner(
+                    QtWindow {
+                        window: QMainWindow::new(),
+                        child: None,
+                        filter: CustomEventFilter::new(event_handler),
+                        timer: Timer::new(),
+                        queue: SlotNoArgs::new(move || {}),
+                    },
+                    (),
+                ),
                 (),
             ),
             MemberFunctions::new(_as_any, _as_any_mut, _as_member, _as_member_mut),
         ));
         unsafe {
             let ptr = window.as_ref() as *const _ as u64;
-            (window.as_inner_mut().as_inner_mut().window.as_mut().static_cast_mut() as &mut QObject).set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::new0(ptr));
+            (window.as_inner_mut().as_inner_mut().as_inner_mut().window.as_mut().static_cast_mut() as &mut QObject).set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::new0(ptr));
         }
         window.set_label(title);
         {
-            let window = window.as_inner_mut().as_inner_mut();
+            let selfptr = window.as_ref() as *const _ as u64;
+            let window = window.as_inner_mut().as_inner_mut().as_inner_mut();
             window.window.resize(match start_size {
                 types::WindowStartSize::Exact(w, h) => (w as i32, h as i32),
                 types::WindowStartSize::Fullscreen => {
@@ -64,9 +74,36 @@ impl WindowInner for QtWindow {
                 let qobject: &mut QObject = window.window.as_mut().static_cast_mut();
                 qobject.install_event_filter(filter);
             }
+            window.queue = SlotNoArgs::new(move || {
+                let mut frame_callbacks = 0;
+                while frame_callbacks < defaults::MAX_FRAME_CALLBACKS {
+                    let w = unsafe { (&mut *(selfptr as *mut Window)).as_inner_mut().as_inner_mut().base_mut() };
+                    match w.queue().try_recv() {
+                        Ok(mut cmd) => {
+                            if (cmd.as_mut())(unsafe { &mut *(selfptr as *mut Window) }) {
+                                let _ = w.sender().send(cmd);
+                            }
+                            frame_callbacks += 1;
+                        }
+                        Err(e) => match e {
+                            mpsc::TryRecvError::Empty => break,
+                            mpsc::TryRecvError::Disconnected => unreachable!(),
+                        },
+                    }
+                }
+            });
+            window.timer.signals().timeout().connect(&window.queue);
             window.window.show();
         }
         window
+    }
+    fn on_frame(&mut self, cb: callbacks::Frame) {
+        let qobject: &mut QObject = self.window.as_mut().static_cast_mut();
+        let _ = cast_qobject_to_uimember_mut::<Window>(qobject).unwrap().as_inner_mut().as_inner_mut().base_mut().sender().send(cb);
+    }
+    fn on_frame_async_feeder(&mut self) -> callbacks::AsyncFeeder<callbacks::Frame> {
+        let qobject: &mut QObject = self.window.as_mut().static_cast_mut();
+        cast_qobject_to_uimember_mut::<Window>(qobject).unwrap().as_inner_mut().as_inner_mut().base_mut().sender().clone().into()
     }
 }
 
@@ -162,7 +199,7 @@ fn event_handler(object: &mut QObject, event: &QEvent) -> bool {
         QEventType::Resize => {
             if let Some(window) = common::cast_qobject_to_uimember_mut::<Window>(object) {
                 let (width, height) = window.as_inner().as_inner().size();
-                if let Some(ref mut child) = window.as_inner_mut().as_inner_mut().child {
+                if let Some(ref mut child) = window.as_inner_mut().as_inner_mut().as_inner_mut().child {
                     child.measure(width, height);
                     child.draw(Some((0, 0)));
                 }
