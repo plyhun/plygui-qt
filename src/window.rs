@@ -93,6 +93,7 @@ impl WindowInner for QtWindow {
                 }
             });
             window.timer.signals().timeout().connect(&window.queue);
+            window.timer.start(());
             window.window.show();
         }
         window
