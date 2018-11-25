@@ -320,7 +320,7 @@ impl ContainerInner for QtSplitted {
             return Some(self.second_mut());
         }
 
-        let self2: &mut QtSplitted = unsafe { &mut *(self as *mut QtSplitted) }; // bck is stupid
+        let self2: &mut QtSplitted = unsafe { mem::transmute(self as *mut QtSplitted) }; // bck is stupid
         if let Some(c) = self.first_mut().is_container_mut() {
             let ret = c.find_control_by_id_mut(id);
             if ret.is_some() {
@@ -333,6 +333,7 @@ impl ContainerInner for QtSplitted {
                 return ret;
             }
         }
+
         None
     }
     fn find_control_by_id(&self, id: ids::Id) -> Option<&controls::Control> {
@@ -355,6 +356,7 @@ impl ContainerInner for QtSplitted {
                 return ret;
             }
         }
+
         None
     }
 }
@@ -376,7 +378,7 @@ impl MultiContainerInner for QtSplitted {
             ((self.base.widget.as_mut().static_cast_mut() as &mut QFrame).layout().as_mut().unwrap().dynamic_cast_mut().unwrap() as &mut QBoxLayout).remove_widget(common::cast_control_to_qwidget_mut(child.as_mut()));
             self.base.widget.as_mut().insert_widget(index as i32, common::cast_control_to_qwidget_mut(added.as_mut()));
         }
-
+        self.base.invalidate();
         Some(child)
     }
     fn remove_child_from(&mut self, _: &mut MemberBase, _: usize) -> Option<Box<controls::Control>> {

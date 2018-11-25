@@ -3,11 +3,12 @@ extern crate plygui_api;
 #[macro_use]
 extern crate lazy_static;
 
+pub extern crate qt_core;
+pub extern crate qt_core_custom_events;
+pub extern crate qt_gui;
+pub extern crate qt_widgets;
+
 extern crate libc;
-extern crate qt_core;
-extern crate qt_core_custom_events;
-extern crate qt_gui;
-extern crate qt_widgets;
 
 #[macro_use]
 pub mod common;

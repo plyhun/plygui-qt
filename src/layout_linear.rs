@@ -282,6 +282,7 @@ impl MultiContainerInner for QtLinearLayout {
         unsafe {
             (self.base.widget.as_mut().layout().as_mut().unwrap().dynamic_cast_mut().unwrap() as &mut QBoxLayout).insert_widget((index as i32, common::cast_control_to_qwidget_mut(self.children[index].as_mut()) as *mut QWidget));
         }
+        self.base.invalidate();
         old
     }
     fn remove_child_from(&mut self, _base: &mut MemberBase, index: usize) -> Option<Box<controls::Control>> {
