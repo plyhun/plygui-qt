@@ -1,25 +1,21 @@
 use super::common::*;
 use super::*;
 
-use qt_core::connection::Signal;
 use qt_core::rect::Rect as QRect;
-use qt_core::slots::SlotNoArgs;
 use qt_gui::font_metrics::FontMetrics as QFontMetrics;
-use qt_widgets::push_button::PushButton as QPushButton;
+use qt_widgets::label::Label as QLabel;
 
 use std::borrow::Cow;
 use std::cmp::max;
 
-pub type Button = Member<Control<QtButton>>;
+pub type Text = Member<Control<QtText>>;
 
 #[repr(C)]
-pub struct QtButton {
-    base: common::QtControlBase<Button, QPushButton>,
-
-    h_left_clicked: (bool, SlotNoArgs<'static>),
+pub struct QtText {
+    base: common::QtControlBase<Text, QLabel>,
 }
 
-impl HasLabelInner for QtButton {
+impl HasLabelInner for QtText {
     fn label<'a>(&'a self) -> Cow<'a, str> {
         let name = self.base.widget.as_ref().text().to_utf8();
         unsafe {
@@ -32,29 +28,12 @@ impl HasLabelInner for QtButton {
     }
 }
 
-impl ClickableInner for QtButton {
-    fn on_click(&mut self, cb: Option<callbacks::Click>) {
-        self.h_left_clicked.0 = cb.is_some();
-        if cb.is_some() {
-            let mut cb = cb.unwrap();
-            let ptr = self.base.widget.as_mut().static_cast_mut() as *mut QObject;
-            self.h_left_clicked.1.set(move || unsafe {
-                let button = cast_qobject_to_uimember_mut::<Button>(&mut *ptr).unwrap();
-                (cb.as_mut())(button);
-            });
-        } else {
-            self.h_left_clicked.1.clear();
-        }
-    }
-}
-
-impl ButtonInner for QtButton {
-    fn with_label(label: &str) -> Box<Button> {
+impl TextInner for QtText {
+    fn with_text(text: &str) -> Box<Text> {
         let mut btn = Box::new(Member::with_inner(
             Control::with_inner(
-                QtButton {
-                    base: common::QtControlBase::with_params(QPushButton::new(&QString::from_std_str(label)), event_handler),
-                    h_left_clicked: (false, SlotNoArgs::new(move || {})),
+                QtText {
+                    base: common::QtControlBase::with_params(QLabel::new(&QString::from_std_str(text)), event_handler),
                 },
                 (),
             ),
@@ -62,7 +41,6 @@ impl ButtonInner for QtButton {
         ));
         unsafe {
             let ptr = btn.as_ref() as *const _ as u64;
-            btn.as_inner().as_inner().base.widget.signals().released().connect(&btn.as_inner().as_inner().h_left_clicked.1);
             let qo: &mut QObject = btn.as_inner_mut().as_inner_mut().base.widget.static_cast_mut();
             qo.set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::new0(ptr));
         }
@@ -70,13 +48,13 @@ impl ButtonInner for QtButton {
     }
 }
 
-impl HasLayoutInner for QtButton {
+impl HasLayoutInner for QtText {
     fn on_layout_changed(&mut self, _base: &mut MemberBase) {
         self.base.invalidate();
     }
 }
 
-impl ControlInner for QtButton {
+impl ControlInner for QtText {
     fn parent(&self) -> Option<&controls::Member> {
         self.base.parent()
     }
@@ -98,15 +76,15 @@ impl ControlInner for QtButton {
 
     #[cfg(feature = "markup")]
     fn fill_from_markup(&mut self, markup: &plygui_api::markup::Markup, registry: &mut plygui_api::markup::MarkupRegistry) {
-        use plygui_api::markup::MEMBER_TYPE_BUTTON;
+        use plygui_api::markup::MEMBER_TYPE_TEXT;
 
-        fill_from_markup_base!(self, markup, registry, Button, [MEMBER_ID_BUTTON, MEMBER_TYPE_BUTTON]);
+        fill_from_markup_base!(self, markup, registry, Text, [MEMBER_ID_TEXT, MEMBER_TYPE_TEXT]);
         fill_from_markup_label!(self, markup);
-        fill_from_markup_callbacks!(self, markup, registry, ["on_click" => FnMut(&mut controls::Button)]);
+        fill_from_markup_callbacks!(self, markup, registry, ["on_click" => FnMut(&mut controls::Text)]);
     }
 }
 
-impl MemberInner for QtButton {
+impl MemberInner for QtText {
     type Id = common::QtId;
 
     fn on_set_visibility(&mut self, base: &mut MemberBase) {
@@ -121,7 +99,7 @@ impl MemberInner for QtButton {
     }
 }
 
-impl Drawable for QtButton {
+impl Drawable for QtText {
     fn draw(&mut self, member: &mut MemberBase, control: &mut ControlBase, coords: Option<(i32, i32)>) {
         self.base.draw(member, control, coords);
     }
@@ -168,13 +146,13 @@ impl Drawable for QtButton {
 
 #[allow(dead_code)]
 pub(crate) fn spawn() -> Box<controls::Control> {
-    Button::with_label("").into_control()
+    Text::empty().into_control()
 }
 
 fn event_handler(object: &mut QObject, event: &QEvent) -> bool {
     match event.type_() {
         QEventType::Resize => {
-            if let Some(ll) = cast_qobject_to_uimember_mut::<Button>(object) {
+            if let Some(ll) = cast_qobject_to_uimember_mut::<Text>(object) {
                 use plygui_api::controls::Member;
 
                 if ll.as_inner().as_inner().base.dirty {
@@ -185,7 +163,7 @@ fn event_handler(object: &mut QObject, event: &QEvent) -> bool {
             }
         }
         QEventType::Destroy => {
-            if let Some(ll) = cast_qobject_to_uimember_mut::<Button>(object) {
+            if let Some(ll) = cast_qobject_to_uimember_mut::<Text>(object) {
                 unsafe {
                     ptr::write(&mut ll.as_inner_mut().as_inner_mut().base.widget, CppBox::new(ptr::null_mut()));
                 }
@@ -195,4 +173,4 @@ fn event_handler(object: &mut QObject, event: &QEvent) -> bool {
     }
     false
 }
-impl_all_defaults!(Button);
+impl_all_defaults!(Text);
