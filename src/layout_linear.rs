@@ -10,7 +10,7 @@ pub type LinearLayout = Member<Control<MultiContainer<QtLinearLayout>>>;
 pub struct QtLinearLayout {
     base: common::QtControlBase<LinearLayout, QFrame>,
     layout: CppBox<QBoxLayout>,
-    children: Vec<Box<controls::Control>>,
+    children: Vec<Box<dyn controls::Control>>,
 }
 
 impl LinearLayoutInner for QtLinearLayout {
@@ -175,7 +175,7 @@ impl HasLayoutInner for QtLinearLayout {
 }
 
 impl ControlInner for QtLinearLayout {
-    fn on_added_to_container(&mut self, member: &mut MemberBase, control: &mut ControlBase, _parent: &controls::Container, x: i32, y: i32, pw: u16, ph: u16) {
+    fn on_added_to_container(&mut self, member: &mut MemberBase, control: &mut ControlBase, _parent: &dyn controls::Container, x: i32, y: i32, pw: u16, ph: u16) {
         self.measure(member, control, pw, ph);
         self.base.dirty = false;
         self.draw(member, control, Some((x, y)));
@@ -197,23 +197,23 @@ impl ControlInner for QtLinearLayout {
             }
         }
     }
-    fn on_removed_from_container(&mut self, member: &mut MemberBase, _control: &mut ControlBase, _parent: &controls::Container) {
+    fn on_removed_from_container(&mut self, member: &mut MemberBase, _control: &mut ControlBase, _parent: &dyn controls::Container) {
         let self2: &mut LinearLayout = unsafe { utils::base_to_impl_mut(member) };
-        for mut child in self.children.iter_mut() {
+        for child in self.children.iter_mut() {
             child.on_removed_from_container(self2);
         }
     }
 
-    fn parent(&self) -> Option<&controls::Member> {
+    fn parent(&self) -> Option<&dyn controls::Member> {
         self.base.parent()
     }
-    fn parent_mut(&mut self) -> Option<&mut controls::Member> {
+    fn parent_mut(&mut self) -> Option<&mut dyn controls::Member> {
         self.base.parent_mut()
     }
-    fn root(&self) -> Option<&controls::Member> {
+    fn root(&self) -> Option<&dyn controls::Member> {
         self.base.root()
     }
-    fn root_mut(&mut self) -> Option<&mut controls::Member> {
+    fn root_mut(&mut self) -> Option<&mut dyn controls::Member> {
         self.base.root_mut()
     }
     #[cfg(feature = "markup")]
@@ -236,7 +236,7 @@ impl HasOrientationInner for QtLinearLayout {
 }
 
 impl ContainerInner for QtLinearLayout {
-    fn find_control_by_id_mut(&mut self, id: ids::Id) -> Option<&mut controls::Control> {
+    fn find_control_by_id_mut(&mut self, id: ids::Id) -> Option<&mut dyn controls::Control> {
         for child in self.children.as_mut_slice() {
             if child.as_member().id() == id {
                 return Some(child.as_mut());
@@ -250,7 +250,7 @@ impl ContainerInner for QtLinearLayout {
         }
         None
     }
-    fn find_control_by_id(&self, id: ids::Id) -> Option<&controls::Control> {
+    fn find_control_by_id(&self, id: ids::Id) -> Option<&dyn controls::Control> {
         for child in self.children.as_slice() {
             if child.as_member().id() == id {
                 return Some(child.as_ref());
@@ -270,7 +270,7 @@ impl MultiContainerInner for QtLinearLayout {
     fn len(&self) -> usize {
         self.children.len()
     }
-    fn set_child_to(&mut self, _base: &mut MemberBase, index: usize, mut child: Box<controls::Control>) -> Option<Box<controls::Control>> {
+    fn set_child_to(&mut self, _base: &mut MemberBase, index: usize, mut child: Box<dyn controls::Control>) -> Option<Box<dyn controls::Control>> {
         let old = if index < self.children.len() {
             mem::swap(&mut child, &mut self.children[index]);
             unsafe {
@@ -287,7 +287,7 @@ impl MultiContainerInner for QtLinearLayout {
         self.base.invalidate();
         old
     }
-    fn remove_child_from(&mut self, _base: &mut MemberBase, index: usize) -> Option<Box<controls::Control>> {
+    fn remove_child_from(&mut self, _base: &mut MemberBase, index: usize) -> Option<Box<dyn controls::Control>> {
         if index < self.children.len() {
             let mut item = self.children.remove(index);
             unsafe {
@@ -299,10 +299,10 @@ impl MultiContainerInner for QtLinearLayout {
             None
         }
     }
-    fn child_at(&self, index: usize) -> Option<&controls::Control> {
+    fn child_at(&self, index: usize) -> Option<&dyn controls::Control> {
         self.children.get(index).map(|c| c.as_ref())
     }
-    fn child_at_mut(&mut self, index: usize) -> Option<&mut controls::Control> {
+    fn child_at_mut(&mut self, index: usize) -> Option<&mut dyn controls::Control> {
         //self.children.get_mut(index).map(|c| c.as_mut()) //the anonymous lifetime #1 does not necessarily outlive the static lifetime
         if let Some(c) = self.children.get_mut(index) {
             Some(c.as_mut())
@@ -327,7 +327,7 @@ fn orientation_to_box_direction(a: layout::Orientation) -> Direction {
 }
 
 #[allow(dead_code)]
-pub(crate) fn spawn() -> Box<controls::Control> {
+pub(crate) fn spawn() -> Box<dyn controls::Control> {
     LinearLayout::with_orientation(layout::Orientation::Vertical).into_control()
 }
 

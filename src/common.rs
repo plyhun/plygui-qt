@@ -160,7 +160,7 @@ impl<T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> QtCont
         widget.static_cast_mut().set_size_policy(&sp_retain);
         widget.static_cast_mut().set_visible(visibility == types::Visibility::Visible);
     }
-    pub fn parent(&self) -> Option<&controls::Member> {
+    pub fn parent(&self) -> Option<&dyn controls::Member> {
         unsafe {
             let ptr = ((&*self.widget.as_ref().static_cast().parent_widget()).static_cast() as &QObject).property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
             if ptr != 0 {
@@ -171,7 +171,7 @@ impl<T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> QtCont
             }
         }
     }
-    pub fn parent_mut(&mut self) -> Option<&mut controls::Member> {
+    pub fn parent_mut(&mut self) -> Option<&mut dyn controls::Member> {
         unsafe {
             let ptr = ((&mut *self.widget.as_mut().static_cast_mut().parent_widget()).static_cast_mut() as &mut QObject)
                 .property(PROPERTY.as_ptr() as *const i8)
@@ -184,7 +184,7 @@ impl<T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> QtCont
             }
         }
     }
-    pub fn root(&self) -> Option<&controls::Member> {
+    pub fn root(&self) -> Option<&dyn controls::Member> {
         unsafe {
             let ptr = ((&*self.widget.as_ref().static_cast().window()).static_cast() as &QObject).property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
             if ptr != 0 {
@@ -195,7 +195,7 @@ impl<T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> QtCont
             }
         }
     }
-    pub fn root_mut(&mut self) -> Option<&mut controls::Member> {
+    pub fn root_mut(&mut self) -> Option<&mut dyn controls::Member> {
         unsafe {
             let ptr = ((&mut *self.widget.as_mut().static_cast_mut().window()).static_cast_mut() as &mut QObject).property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
             if ptr != 0 {
@@ -208,10 +208,10 @@ impl<T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> QtCont
     }
 }
 
-pub fn cast_control_to_qwidget_mut(control: &mut controls::Control) -> &mut QWidget {
+pub fn cast_control_to_qwidget_mut(control: &mut dyn controls::Control) -> &mut QWidget {
     unsafe { &mut *(control.native_id() as *mut QWidget) }
 }
-pub fn cast_control_to_qwidget(control: &controls::Control) -> &QWidget {
+pub fn cast_control_to_qwidget(control: &dyn controls::Control) -> &QWidget {
     unsafe { &*(control.native_id() as *const QWidget) }
 }
 fn cast_qobject_mut<'a, T>(object: &'a mut QObject) -> Option<&'a mut T>

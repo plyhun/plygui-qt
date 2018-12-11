@@ -15,7 +15,7 @@ pub struct QtFrame {
     base: common::QtControlBase<Frame, QGroupBox>,
     layout: CppBox<QStackedLayout>,
     label_size: QRect,
-    child: Option<Box<controls::Control>>,
+    child: Option<Box<dyn controls::Control>>,
 }
 
 impl FrameInner for QtFrame {
@@ -61,7 +61,7 @@ impl Drop for QtFrame {
     }
 }
 impl SingleContainerInner for QtFrame {
-    fn set_child(&mut self, _base: &mut MemberBase, mut child: Option<Box<controls::Control>>) -> Option<Box<controls::Control>> {
+    fn set_child(&mut self, _base: &mut MemberBase, mut child: Option<Box<dyn controls::Control>>) -> Option<Box<dyn controls::Control>> {
         mem::swap(&mut child, &mut self.child);
         if let Some(old) = child.as_mut() {
             unsafe {
@@ -76,10 +76,10 @@ impl SingleContainerInner for QtFrame {
         self.base.invalidate();
         child
     }
-    fn child(&self) -> Option<&controls::Control> {
+    fn child(&self) -> Option<&dyn controls::Control> {
         self.child.as_ref().map(|c| c.as_ref())
     }
-    fn child_mut(&mut self) -> Option<&mut controls::Control> {
+    fn child_mut(&mut self) -> Option<&mut dyn controls::Control> {
         if let Some(child) = self.child.as_mut() {
             Some(child.as_mut())
         } else {
@@ -89,7 +89,7 @@ impl SingleContainerInner for QtFrame {
 }
 
 impl ContainerInner for QtFrame {
-    fn find_control_by_id_mut(&mut self, id: ids::Id) -> Option<&mut controls::Control> {
+    fn find_control_by_id_mut(&mut self, id: ids::Id) -> Option<&mut dyn controls::Control> {
         if let Some(child) = self.child.as_mut() {
             if child.as_member().id() == id {
                 Some(child.as_mut())
@@ -102,7 +102,7 @@ impl ContainerInner for QtFrame {
             None
         }
     }
-    fn find_control_by_id(&self, id: ids::Id) -> Option<&controls::Control> {
+    fn find_control_by_id(&self, id: ids::Id) -> Option<&dyn controls::Control> {
         if let Some(child) = self.child.as_ref() {
             if child.as_member().id() == id {
                 Some(child.as_ref())
@@ -141,7 +141,7 @@ impl HasLayoutInner for QtFrame {
 }
 
 impl ControlInner for QtFrame {
-    fn on_added_to_container(&mut self, member: &mut MemberBase, control: &mut ControlBase, _parent: &controls::Container, x: i32, y: i32, pw: u16, ph: u16) {
+    fn on_added_to_container(&mut self, member: &mut MemberBase, control: &mut ControlBase, _parent: &dyn controls::Container, x: i32, y: i32, pw: u16, ph: u16) {
         self.measure(member, control, pw, ph);
         self.draw(member, control, Some((x, y)));
         let margins = self.layout.contents_margins();
@@ -156,23 +156,23 @@ impl ControlInner for QtFrame {
             );
         }
     }
-    fn on_removed_from_container(&mut self, member: &mut MemberBase, _control: &mut ControlBase, _: &controls::Container) {
+    fn on_removed_from_container(&mut self, member: &mut MemberBase, _control: &mut ControlBase, _: &dyn controls::Container) {
         if let Some(ref mut child) = self.child {
             let self2 = unsafe { utils::base_to_impl_mut::<Frame>(member) };
             child.on_removed_from_container(self2);
         }
     }
 
-    fn parent(&self) -> Option<&controls::Member> {
+    fn parent(&self) -> Option<&dyn controls::Member> {
         self.base.parent().map(|m| m.as_member())
     }
-    fn parent_mut(&mut self) -> Option<&mut controls::Member> {
+    fn parent_mut(&mut self) -> Option<&mut dyn controls::Member> {
         self.base.parent_mut().map(|m| m.as_member_mut())
     }
-    fn root(&self) -> Option<&controls::Member> {
+    fn root(&self) -> Option<&dyn controls::Member> {
         self.base.root().map(|m| m.as_member())
     }
-    fn root_mut(&mut self) -> Option<&mut controls::Member> {
+    fn root_mut(&mut self) -> Option<&mut dyn controls::Member> {
         self.base.root_mut().map(|m| m.as_member_mut())
     }
 
@@ -223,7 +223,7 @@ impl Drawable for QtFrame {
                     layout::Size::WrapContent => {
                         let mut w = 0;
                         if self.label_size.width() < 1 {
-                            let mut fm = QFontMetrics::new(font);
+                            let fm = QFontMetrics::new(font);
                             self.label_size = fm.bounding_rect(&self.base.widget.as_ref().title());
                         }
                         if let Some(ref mut child) = self.child {
@@ -240,7 +240,7 @@ impl Drawable for QtFrame {
                     layout::Size::WrapContent => {
                         let mut h = 0;
                         if self.label_size.height() < 1 {
-                            let mut fm = QFontMetrics::new(font);
+                            let fm = QFontMetrics::new(font);
                             self.label_size = fm.bounding_rect(&self.base.widget.as_ref().title());
                         }
                         if let Some(ref mut child) = self.child {
@@ -266,7 +266,7 @@ impl Drawable for QtFrame {
 }
 
 #[allow(dead_code)]
-pub(crate) fn spawn() -> Box<controls::Control> {
+pub(crate) fn spawn() -> Box<dyn controls::Control> {
     Frame::with_label("").into_control()
 }
 

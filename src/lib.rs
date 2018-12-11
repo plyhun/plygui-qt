@@ -3,12 +3,12 @@ extern crate plygui_api;
 #[macro_use]
 extern crate lazy_static;
 
-pub extern crate qt_core;
-pub extern crate qt_core_custom_events;
-pub extern crate qt_gui;
-pub extern crate qt_widgets;
+pub use qt_core;
+pub use qt_core_custom_events;
+pub use qt_gui;
+pub use qt_widgets;
 
-extern crate libc;
+
 
 #[macro_use]
 pub mod common;
@@ -38,12 +38,12 @@ pub mod prelude {
     pub use plygui_api::utils;
 
     pub mod imp {
-        pub use application::Application;
-        pub use button::Button;
-        pub use frame::Frame;
-        pub use layout_linear::LinearLayout;
-        pub use splitted::Splitted;
-        pub use window::Window;
-        pub use text::Text;
+        pub use crate::application::Application;
+        pub use crate::button::Button;
+        pub use crate::frame::Frame;
+        pub use crate::layout_linear::LinearLayout;
+        pub use crate::splitted::Splitted;
+        pub use crate::window::Window;
+        pub use crate::text::Text;
     }
 }

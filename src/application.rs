@@ -28,7 +28,7 @@ impl development::ApplicationInner for QtApplication {
         QCoreApplication::set_application_name(&String::from_std_str(name));
         Box::new(development::Application::with_inner(QtApplication { _inner: inner, windows: Vec::with_capacity(1) }, ()))
     }
-    fn new_window(&mut self, title: &str, size: types::WindowStartSize, menu: types::WindowMenu) -> Box<controls::Window> {
+    fn new_window(&mut self, title: &str, size: types::WindowStartSize, menu: types::WindowMenu) -> Box<dyn controls::Window> {
         let w = super::window::Window::with_params(title, size, menu);
         self.windows.push(unsafe { w.native_id().into() });
         w
@@ -43,7 +43,7 @@ impl development::ApplicationInner for QtApplication {
     fn start(&mut self) {
         exit(QApplication::exec());
     }
-    fn find_member_by_id_mut(&mut self, id: ids::Id) -> Option<&mut controls::Member> {
+    fn find_member_by_id_mut(&mut self, id: ids::Id) -> Option<&mut dyn controls::Member> {
         use plygui_api::controls::{Container, Member};
 
         for window in self.windows.as_mut_slice() {
@@ -56,7 +56,7 @@ impl development::ApplicationInner for QtApplication {
         }
         None
     }
-    fn find_member_by_id(&self, id: ids::Id) -> Option<&controls::Member> {
+    fn find_member_by_id(&self, id: ids::Id) -> Option<&dyn controls::Member> {
         use plygui_api::controls::{Container, Member};
 
         for window in self.windows.as_slice() {

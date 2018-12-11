@@ -77,24 +77,24 @@ impl HasLayoutInner for QtButton {
 }
 
 impl ControlInner for QtButton {
-    fn parent(&self) -> Option<&controls::Member> {
+    fn parent(&self) -> Option<&dyn controls::Member> {
         self.base.parent()
     }
-    fn parent_mut(&mut self) -> Option<&mut controls::Member> {
+    fn parent_mut(&mut self) -> Option<&mut dyn controls::Member> {
         self.base.parent_mut()
     }
-    fn root(&self) -> Option<&controls::Member> {
+    fn root(&self) -> Option<&dyn controls::Member> {
         self.base.root()
     }
-    fn root_mut(&mut self) -> Option<&mut controls::Member> {
+    fn root_mut(&mut self) -> Option<&mut dyn controls::Member> {
         self.base.root_mut()
     }
-    fn on_added_to_container(&mut self, member: &mut MemberBase, control: &mut ControlBase, _parent: &controls::Container, x: i32, y: i32, pw: u16, ph: u16) {
+    fn on_added_to_container(&mut self, member: &mut MemberBase, control: &mut ControlBase, _parent: &dyn controls::Container, x: i32, y: i32, pw: u16, ph: u16) {
         self.measure(member, control, pw, ph);
         self.base.dirty = false;
         self.draw(member, control, Some((x, y)));
     }
-    fn on_removed_from_container(&mut self, _member: &mut MemberBase, _control: &mut ControlBase, _: &controls::Container) {}
+    fn on_removed_from_container(&mut self, _member: &mut MemberBase, _control: &mut ControlBase, _: &dyn controls::Container) {}
 
     #[cfg(feature = "markup")]
     fn fill_from_markup(&mut self, markup: &plygui_api::markup::Markup, registry: &mut plygui_api::markup::MarkupRegistry) {
@@ -138,7 +138,7 @@ impl Drawable for QtButton {
                     layout::Size::Exact(w) => w as i32,
                     layout::Size::WrapContent => {
                         if label_size.width() < 1 {
-                            let mut fm = QFontMetrics::new(font);
+                            let fm = QFontMetrics::new(font);
                             label_size = fm.bounding_rect(&self.base.widget.as_ref().text());
                         }
                         label_size.width() + 16
@@ -149,7 +149,7 @@ impl Drawable for QtButton {
                     layout::Size::Exact(h) => h as i32,
                     layout::Size::WrapContent => {
                         if label_size.height() < 1 {
-                            let mut fm = QFontMetrics::new(font);
+                            let fm = QFontMetrics::new(font);
                             label_size = fm.bounding_rect(&self.base.widget.as_ref().text());
                         }
                         label_size.height() + 16
@@ -167,7 +167,7 @@ impl Drawable for QtButton {
 }
 
 #[allow(dead_code)]
-pub(crate) fn spawn() -> Box<controls::Control> {
+pub(crate) fn spawn() -> Box<dyn controls::Control> {
     Button::with_label("").into_control()
 }
 

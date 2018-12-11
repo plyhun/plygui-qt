@@ -13,7 +13,7 @@ pub type Window = Member<SingleContainer<::plygui_api::development::Window<QtWin
 #[repr(C)]
 pub struct QtWindow {
     window: CppBox<QMainWindow>,
-    child: Option<Box<controls::Control>>,
+    child: Option<Box<dyn controls::Control>>,
     filter: CppBox<CustomEventFilter>,
     timer: CppBox<Timer>,
     queue: SlotNoArgs<'static>,
@@ -109,7 +109,7 @@ impl WindowInner for QtWindow {
 }
 
 impl SingleContainerInner for QtWindow {
-    fn set_child(&mut self, base: &mut MemberBase, mut child: Option<Box<controls::Control>>) -> Option<Box<controls::Control>> {
+    fn set_child(&mut self, base: &mut MemberBase, mut child: Option<Box<dyn controls::Control>>) -> Option<Box<dyn controls::Control>> {
         let mut old = self.child.take();
         let (w, h) = self.size();
         let margins = self.window.contents_margins();
@@ -118,7 +118,7 @@ impl SingleContainerInner for QtWindow {
         }
         if let Some(new) = child.as_mut() {
             unsafe {
-                let mut widget = common::cast_control_to_qwidget_mut(new.as_mut());
+                let widget = common::cast_control_to_qwidget_mut(new.as_mut());
                 self.window.as_mut().set_central_widget(widget);
             }
             new.on_added_to_container(
@@ -137,10 +137,10 @@ impl SingleContainerInner for QtWindow {
 
         old
     }
-    fn child(&self) -> Option<&controls::Control> {
+    fn child(&self) -> Option<&dyn controls::Control> {
         self.child.as_ref().map(|c| c.as_ref())
     }
-    fn child_mut(&mut self) -> Option<&mut controls::Control> {
+    fn child_mut(&mut self) -> Option<&mut dyn controls::Control> {
         if let Some(child) = self.child.as_mut() {
             Some(child.as_mut())
         } else {
@@ -150,7 +150,7 @@ impl SingleContainerInner for QtWindow {
 }
 
 impl ContainerInner for QtWindow {
-    fn find_control_by_id_mut(&mut self, id_: ids::Id) -> Option<&mut controls::Control> {
+    fn find_control_by_id_mut(&mut self, id_: ids::Id) -> Option<&mut dyn controls::Control> {
         if let Some(child) = self.child.as_mut() {
             if let Some(c) = child.is_container_mut() {
                 return c.find_control_by_id_mut(id_);
@@ -158,7 +158,7 @@ impl ContainerInner for QtWindow {
         }
         None
     }
-    fn find_control_by_id(&self, id_: ids::Id) -> Option<&controls::Control> {
+    fn find_control_by_id(&self, id_: ids::Id) -> Option<&dyn controls::Control> {
         if let Some(child) = self.child.as_ref() {
             if let Some(c) = child.is_container() {
                 return c.find_control_by_id(id_);
