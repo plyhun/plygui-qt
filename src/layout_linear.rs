@@ -76,10 +76,10 @@ impl Drawable for QtLinearLayout {
         self.base.draw(member, control, coords);
 
         let orientation = self.layout_orientation();
-        let margins = self.base.widget.contents_margins();
+        let margins = self.layout.contents_margins();
+        let spacing = self.layout.as_ref().spacing();
         let mut x = margins.left();
         let mut y = margins.top();
-        let spacing = self.layout.as_ref().spacing();
         for child in self.children.as_mut_slice() {
             child.draw(Some((x, y)));
             let (xx, yy) = child.size();
@@ -103,9 +103,10 @@ impl Drawable for QtLinearLayout {
                     layout::Size::Exact(w) => w,
                     layout::Size::MatchParent => parent_width,
                     layout::Size::WrapContent => {
+                        let spacing = self.layout.as_ref().spacing();
                         let mut w = 0;
                         for child in self.children.as_mut_slice() {
-                            let (cw, _, _) = child.measure(max(0, parent_width as i32 - lm - rm) as u16, max(0, parent_height as i32 - tm - bm) as u16);
+                            let (cw, _, _) = child.measure(max(0, parent_width as i32 - lm - rm - spacing - spacing) as u16, max(0, parent_height as i32 - tm - bm) as u16);
                             match orientation {
                                 layout::Orientation::Horizontal => {
                                     w += cw;
@@ -116,23 +117,24 @@ impl Drawable for QtLinearLayout {
                             }
                             w += match child.visibility() {
                                 types::Visibility::Gone => 0,
-                                _ => max(0, self.layout.as_mut().spacing()) as u16,
+                                _ => max(0, spacing) as u16,
                             };
                         }
                         measured = true;
-                        max(0, w as i32 + lm + rm - self.layout.as_mut().spacing()) as u16
+                        max(0, w as i32 + lm + rm + spacing) as u16
                     }
                 };
                 let h = match control.layout.height {
                     layout::Size::Exact(h) => h,
                     layout::Size::MatchParent => parent_height,
                     layout::Size::WrapContent => {
+                        let spacing = self.layout.as_ref().spacing();
                         let mut h = 0;
                         for child in self.children.as_mut_slice() {
                             let ch = if measured {
                                 child.size().1
                             } else {
-                                let (_, ch, _) = child.measure(max(0, parent_width as i32 - lm - rm) as u16, max(0, parent_height as i32 - tm - bm) as u16);
+                                let (_, ch, _) = child.measure(max(0, parent_width as i32 - lm - rm - spacing - spacing) as u16, max(0, parent_height as i32 - tm - bm) as u16);
                                 ch
                             };
                             match orientation {
@@ -145,10 +147,10 @@ impl Drawable for QtLinearLayout {
                             }
                             h += match child.visibility() {
                                 types::Visibility::Gone => 0,
-                                _ => max(0, self.layout.as_mut().spacing()) as u16,
+                                _ => max(0, spacing) as u16,
                             };
                         }
-                        max(0, h as i32 + tm + bm - self.layout.as_mut().spacing()) as u16
+                        max(0, h as i32 + tm + bm + spacing) as u16
                     }
                 };
                 (w, h)
@@ -167,7 +169,7 @@ impl HasLayoutInner for QtLinearLayout {
         self.base.invalidate();
     }
     fn layout_margin(&self, _member: &MemberBase) -> layout::BoundarySize {
-        let margins = self.layout.as_ref().contents_margins();
+        let margins = self.layout.contents_margins();
         layout::BoundarySize::Distinct(margins.left(), margins.top(), margins.right(), margins.bottom())
     }
 }
@@ -177,7 +179,7 @@ impl ControlInner for QtLinearLayout {
         self.measure(member, control, pw, ph);
         self.base.dirty = false;
         self.draw(member, control, Some((x, y)));
-        let margins = self.base.widget.contents_margins();
+        let margins = self.layout.contents_margins();
 
         let orientation = self.layout_orientation();
         let mut x = margins.left();

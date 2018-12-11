@@ -135,7 +135,7 @@ impl HasLayoutInner for QtFrame {
         self.base.invalidate();
     }
     fn layout_margin(&self, _member: &MemberBase) -> layout::BoundarySize {
-        let margins = self.layout.as_ref().contents_margins();
+        let margins = self.layout.contents_margins();
         layout::BoundarySize::Distinct(margins.left(), margins.top(), margins.right(), margins.bottom())
     }
 }
@@ -144,7 +144,7 @@ impl ControlInner for QtFrame {
     fn on_added_to_container(&mut self, member: &mut MemberBase, control: &mut ControlBase, _parent: &controls::Container, x: i32, y: i32, pw: u16, ph: u16) {
         self.measure(member, control, pw, ph);
         self.draw(member, control, Some((x, y)));
-        let margins = self.base.widget.contents_margins();
+        let margins = self.layout.contents_margins();
         if let Some(ref mut child) = self.child {
             let self2 = unsafe { utils::base_to_impl_mut::<Frame>(member) };
             child.on_added_to_container(
@@ -202,9 +202,9 @@ impl MemberInner for QtFrame {
 impl Drawable for QtFrame {
     fn draw(&mut self, member: &mut MemberBase, control: &mut ControlBase, coords: Option<(i32, i32)>) {
         self.base.draw(member, control, coords);
-        let margins = self.layout.as_ref().contents_margins();
+        let margins = self.base.widget.contents_margins();
         if let Some(ref mut child) = self.child {
-            child.draw(Some((margins.left(), margins.top() + self.label_size.height())));
+            child.draw(Some((margins.left(), margins.top())));
         }
     }
     fn measure(&mut self, member: &mut MemberBase, control: &mut ControlBase, parent_width: u16, parent_height: u16) -> (u16, u16, bool) {

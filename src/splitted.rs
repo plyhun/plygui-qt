@@ -122,10 +122,10 @@ impl QtSplitted {
         let o = self.layout_orientation();
         let margins = self.base.widget.contents_margins();
         let handle = self.base.widget.handle_width();
-        self.first.draw(Some((margins.left() + 6, margins.top() + 6)));
+        self.first.draw(Some((margins.left(), margins.top())));
         match o {
-            layout::Orientation::Horizontal => self.second.draw(Some((margins.left() + first as i32 + handle + 6, margins.top() + 6))),
-            layout::Orientation::Vertical => self.second.draw(Some((margins.left() + 6, margins.top() + first as i32 + handle + 6))),
+            layout::Orientation::Horizontal => self.second.draw(Some((margins.left() + first as i32 + handle, margins.top()))),
+            layout::Orientation::Vertical => self.second.draw(Some((margins.left(), margins.top() + first as i32 + handle))),
         }
     }
 }
