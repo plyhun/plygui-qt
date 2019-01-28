@@ -270,7 +270,7 @@ pub(crate) fn spawn() -> Box<dyn controls::Control> {
     Frame::with_label("").into_control()
 }
 
-fn event_handler(object: &mut QObject, event: &QEvent) -> bool {
+fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
     match event.type_() {
         QEventType::Resize => {
             if let Some(fr) = cast_qobject_to_uimember_mut::<Frame>(object) {

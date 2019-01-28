@@ -333,7 +333,7 @@ pub(crate) fn spawn() -> Box<dyn controls::Control> {
 
 impl_all_defaults!(LinearLayout);
 
-fn event_handler(object: &mut QObject, event: &QEvent) -> bool {
+fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
     match event.type_() {
         QEventType::Resize => {
             if let Some(ll) = cast_qobject_to_uimember_mut::<LinearLayout>(object) {

@@ -84,7 +84,7 @@ pub struct QtControlBase<T: controls::Control + Sized, Q: StaticCast<QWidget> + 
 impl<T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> QtControlBase<T, Q> {
     pub fn with_params<F>(widget: CppBox<Q>, event_callback: F) -> QtControlBase<T, Q>
     where
-        F: for<'a, 'b> FnMut(&'a mut QObject, &'b QEvent) -> bool,
+        F: for<'a, 'b> FnMut(&'a mut QObject, &'b mut QEvent) -> bool,
     {
         let mut base = QtControlBase {
             widget: widget,

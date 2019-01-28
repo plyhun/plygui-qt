@@ -20,14 +20,17 @@ pub struct QtApplication {
     windows: Vec<QtId>,
 }
 
-impl development::ApplicationInner for QtApplication {
-    fn with_name(name: &str) -> Box<Application> {
-        use plygui_api::development::HasInner;
+impl NewApplication<QtApplication> for QtApplication {
+    fn init_with_name(name: &str) -> Box<Application> {
+        //use plygui_api::HasInner;
 
         let inner = unsafe { QApplication::new(QCoreApplicationArgs::from_real().get()) };
         QCoreApplication::set_application_name(&String::from_std_str(name));
         Box::new(development::Application::with_inner(QtApplication { _inner: inner, windows: Vec::with_capacity(1) }, ()))
     }
+}
+
+impl ApplicationInner for QtApplication {
     fn new_window(&mut self, title: &str, size: types::WindowStartSize, menu: types::WindowMenu) -> Box<dyn controls::Window> {
         let w = super::window::Window::with_params(title, size, menu);
         self.windows.push(unsafe { w.native_id().into() });

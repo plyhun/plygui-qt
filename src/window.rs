@@ -17,6 +17,8 @@ pub struct QtWindow {
     filter: CppBox<CustomEventFilter>,
     timer: CppBox<Timer>,
     queue: SlotNoArgs<'static>,
+    on_close: Option<callbacks::Action>,
+    skip_callbacks: bool,
 }
 
 impl HasLabelInner for QtWindow {
@@ -29,6 +31,15 @@ impl HasLabelInner for QtWindow {
     }
     fn set_label(&mut self, _: &mut MemberBase, label: &str) {
         self.window.set_window_title(&QString::from_std_str(label));
+    }
+}
+
+impl CloseableInner for QtWindow {
+    fn close(&mut self, skip_callbacks: bool) {
+        self.skip_callbacks = skip_callbacks;
+    }
+    fn on_close(&mut self, callback: Option<callbacks::Action>) {
+        self.on_close = callback;
     }
 }
 
@@ -45,6 +56,8 @@ impl WindowInner for QtWindow {
                         filter: CustomEventFilter::new(event_handler),
                         timer: Timer::new(),
                         queue: SlotNoArgs::new(move || {}),
+                        on_close: None,
+                        skip_callbacks: false,
                     },
                     (),
                 ),
@@ -195,7 +208,7 @@ impl Drop for QtWindow {
     }
 }
 
-fn event_handler(object: &mut QObject, event: &QEvent) -> bool {
+fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
     match event.type_() {
         QEventType::Resize => {
             if let Some(window) = common::cast_qobject_to_uimember_mut::<Window>(object) {
@@ -205,6 +218,19 @@ fn event_handler(object: &mut QObject, event: &QEvent) -> bool {
                     child.draw(Some((0, 0)));
                 }
                 window.call_on_resize(width, height);
+            }
+        }
+        QEventType::Close => {
+            let object2 = object as *mut QObject;
+            if let Some(w) = common::cast_qobject_to_uimember_mut::<Window>(object) {
+                if !w.as_inner_mut().as_inner_mut().as_inner_mut().skip_callbacks {
+                    if let Some(ref mut on_close) = w.as_inner_mut().as_inner_mut().as_inner_mut().on_close {
+                        let w2 = common::cast_qobject_to_uimember_mut::<Window>(unsafe { &mut *object2 }).unwrap();
+                        if !(on_close.as_mut())(w2) {
+                            event.ignore();
+                        }
+                    }
+                }
             }
         }
         _ => {}
