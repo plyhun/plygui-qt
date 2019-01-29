@@ -19,3 +19,5 @@ libc = {version = "~0.2"}
 
 [features]
 markup = ["plygui-api/markup"]
+type_check = ["plygui-api/type_check"]
+default = ["type_check"]

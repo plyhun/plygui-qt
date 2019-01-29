@@ -209,10 +209,16 @@ impl<T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> QtCont
 }
 
 pub fn cast_control_to_qwidget_mut(control: &mut dyn controls::Control) -> &mut QWidget {
-    unsafe { &mut *(control.native_id() as *mut QWidget) }
+    cast_member_to_qwidget_mut(control.as_member_mut())
 }
 pub fn cast_control_to_qwidget(control: &dyn controls::Control) -> &QWidget {
-    unsafe { &*(control.native_id() as *const QWidget) }
+    cast_member_to_qwidget(control.as_member())
+}
+pub fn cast_member_to_qwidget_mut(member: &mut dyn controls::Member) -> &mut QWidget {
+    unsafe { &mut *(member.native_id() as *mut QWidget) }
+}
+pub fn cast_member_to_qwidget(member: &dyn controls::Member) -> &QWidget {
+    unsafe { &*(member.native_id() as *const QWidget) }
 }
 fn cast_qobject_mut<'a, T>(object: &'a mut QObject) -> Option<&'a mut T>
 where

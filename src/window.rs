@@ -46,12 +46,14 @@ impl CloseableInner for QtWindow {
 impl WindowInner for QtWindow {
     fn with_params(title: &str, start_size: types::WindowStartSize, _menu: types::WindowMenu) -> Box<Member<SingleContainer<::plygui_api::development::Window<Self>>>> {
         use plygui_api::controls::HasLabel;
+        
+        let window = QMainWindow::new();
 
         let mut window = Box::new(Member::with_inner(
             SingleContainer::with_inner(
                 ::plygui_api::development::Window::with_inner(
                     QtWindow {
-                        window: QMainWindow::new(),
+                        window: window,
                         child: None,
                         filter: CustomEventFilter::new(event_handler),
                         timer: Timer::new(),
