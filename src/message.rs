@@ -57,10 +57,10 @@ impl MessageInner for QtMessage {
             
             message.message.set_icon(severity_to_message_icon(severity));
             
-            if let Some(parent) = parent {
-                message.message.set_parent(common::cast_member_to_qwidget(parent) as &_ as *const _ as *mut QWidget);
+            if let Some(_parent) = parent {
+                //message.message.set_parent(common::cast_member_to_qwidget(parent).window());
             }
-            message.actions.iter().enumerate().map(|a| a).for_each(|(i,a)| {
+            message.actions.iter().enumerate().for_each(|(i,a)| {
                 (&mut *qmessage).add_button((&QString::from_std_str(a.0.as_str()), mem::transmute::<i32, ButtonRole>(i as i32)));
             });
             
@@ -74,7 +74,9 @@ impl MessageInner for QtMessage {
         message_icon_to_severity(self.message.icon())
     }
     fn start(&mut self) -> Result<String, ()> {
-        self.actions.get(self.message.exec() as usize).map(|a| a.0.clone()).ok_or(())
+        let result = self.message.exec() as usize;
+        dbg!(result);
+        self.actions.get(result).map(|a| a.0.clone()).ok_or(())
     }
 }
 

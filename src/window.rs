@@ -230,6 +230,7 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
                         let w2 = common::cast_qobject_to_uimember_mut::<Window>(unsafe { &mut *object2 }).unwrap();
                         if !(on_close.as_mut())(w2) {
                             event.ignore();
+                            return true;
                         }
                     }
                 }

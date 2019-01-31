@@ -24,7 +24,7 @@ impl NewApplication<QtApplication> for QtApplication {
     fn init_with_name(name: &str) -> Box<Application> {
         //use plygui_api::HasInner;
 
-        let inner = unsafe { QApplication::new(QCoreApplicationArgs::empty().get()) };
+        let inner = unsafe { QApplication::new(QCoreApplicationArgs::from_real().get()) };
         QCoreApplication::set_application_name(&String::from_std_str(name));
         Box::new(development::Application::with_inner(QtApplication { _inner: inner, windows: Vec::with_capacity(1) }, ()))
     }
