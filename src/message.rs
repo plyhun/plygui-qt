@@ -57,8 +57,8 @@ impl MessageInner for QtMessage {
             
             message.message.set_icon(severity_to_message_icon(severity));
             
-            if let Some(_parent) = parent {
-                //message.message.set_parent(common::cast_member_to_qwidget(parent).window());
+            if let Some(parent) = parent {
+                message.message.set_parent(common::cast_member_to_qwidget(parent).window());
             }
             message.actions.iter().enumerate().for_each(|(i,a)| {
                 (&mut *qmessage).add_button((&QString::from_std_str(a.0.as_str()), mem::transmute::<i32, ButtonRole>(i as i32)));

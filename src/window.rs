@@ -37,6 +37,7 @@ impl HasLabelInner for QtWindow {
 impl CloseableInner for QtWindow {
     fn close(&mut self, skip_callbacks: bool) {
         self.skip_callbacks = skip_callbacks;
+        self.window.close();
     }
     fn on_close(&mut self, callback: Option<callbacks::Action>) {
         self.on_close = callback;
