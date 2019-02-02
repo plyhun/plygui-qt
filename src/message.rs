@@ -60,8 +60,8 @@ impl MessageInner for QtMessage {
             if let Some(parent) = parent {
                 message.message.set_parent(common::cast_member_to_qwidget(parent).window());
             }
-            message.actions.iter().enumerate().for_each(|(i,a)| {
-                (&mut *qmessage).add_button((&QString::from_std_str(a.0.as_str()), mem::transmute::<i32, ButtonRole>(i as i32)));
+            message.actions.iter().for_each(|a| {
+                (&mut *qmessage).add_button((&QString::from_std_str(a.0.as_str()), ButtonRole::ActionRole));
             });
             
             let filter: *mut QObject = message.filter.static_cast_mut() as *mut QObject;
@@ -73,10 +73,15 @@ impl MessageInner for QtMessage {
     fn severity(&self) -> types::MessageSeverity {
         message_icon_to_severity(self.message.icon())
     }
-    fn start(&mut self) -> Result<String, ()> {
-        let result = self.message.exec() as usize;
-        dbg!(result);
-        self.actions.get(result).map(|a| a.0.clone()).ok_or(())
+    fn start(mut self) -> Result<String, ()> {
+        let ptr = self.message.static_cast_mut() as *mut QObject;
+        self.actions.get_mut(self.message.exec() as usize).map(|a| {
+            let message2 = {
+                unsafe { common::cast_qobject_to_uimember_mut::<Message>(&mut *ptr).unwrap() }
+            };
+            (a.1.as_mut())(message2);
+            a.0.clone()
+        }).ok_or(())
     }
 }
 
@@ -133,6 +138,9 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
                 let (width, height) = message.as_inner().size();
                 message.call_on_resize(width, height);
             }
+        },
+        QEventType::Leave => {
+            dbg!("close");
         }
         _ => {}
     }
