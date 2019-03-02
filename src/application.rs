@@ -18,13 +18,14 @@ pub type Application = development::Application<QtApplication>;
 pub struct QtApplication {
     inner: CppBox<QApplication>,
     windows: Vec<QtId>,
+    trays: Vec<QtId>,
 }
 
 impl ApplicationInner for QtApplication {
     fn get() -> Box<Application> {
         let inner = unsafe { QApplication::new(QCoreApplicationArgs::from_real().get()) };
         //QCoreApplication::set_application_name(&String::from_std_str(name));
-        Box::new(development::Application::with_inner(QtApplication { inner: inner, windows: Vec::with_capacity(1) }, ()))
+        Box::new(development::Application::with_inner(QtApplication { inner: inner, windows: Vec::with_capacity(1), trays: vec![] }, ()))
     }
     fn new_window(&mut self, title: &str, size: types::WindowStartSize, menu: types::Menu) -> Box<dyn controls::Window> {
         use plygui_api::controls::HasNativeId;
@@ -34,7 +35,11 @@ impl ApplicationInner for QtApplication {
         w
     }
     fn new_tray(&mut self, title: &str, menu: types::Menu) -> Box<dyn controls::Tray> {
-        unimplemented!()
+        use plygui_api::controls::HasNativeId;
+
+        let t = super::tray::QtTray::with_params(title, menu);
+        self.trays.push(unsafe { t.native_id().into() });
+        t
     }
     fn name<'a>(&'a self) -> Cow<'a, str> {
         let name = QCoreApplication::application_name().to_utf8();
