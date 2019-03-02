@@ -12,6 +12,7 @@ pub type Tray = Member<QtTray>;
 #[repr(C)]
 pub struct QtTray {
     tray: CppBox<QSystemTrayIcon>,
+    filter: CppBox<CustomEventFilter>,
     on_close: Option<callbacks::Action>,
     skip_callbacks: bool,
 }
@@ -40,7 +41,7 @@ impl CloseableInner for QtTray {
 }
 
 impl TrayInner for QtTray {
-    fn with_params(title: &str, menu: types::Menu) -> Box<Member<Self>> {
+    fn with_params(title: &str, _menu: types::Menu) -> Box<Member<Self>> {
         use plygui_api::controls::HasLabel;
         
         let icon = unsafe{&mut *QApplication::style()}.standard_icon(StandardPixmap::DesktopIcon);
@@ -49,6 +50,7 @@ impl TrayInner for QtTray {
         let mut tray = Box::new(Member::with_inner(
             QtTray {
                 tray: tray,
+                filter: CustomEventFilter::new(event_handler),
                 on_close: None,
                 skip_callbacks: false,
             },
@@ -63,11 +65,11 @@ impl TrayInner for QtTray {
             let tray = tray.as_inner_mut();
             //tray.tray.set_size_policy((QPolicy::Ignored, QPolicy::Ignored));
             //tray.tray.set_minimum_size((1, 1));
-            /*unsafe {
+            unsafe {
                 let filter: *mut QObject = tray.filter.static_cast_mut() as *mut QObject;
                 let qobject: &mut QObject = tray.tray.as_mut().static_cast_mut();
                 qobject.install_event_filter(filter);
-            }*/
+            }
             tray.tray.set_icon(&icon);
             tray.tray.show();
         }
@@ -97,7 +99,7 @@ impl MemberInner for QtTray {
 
 fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
     match event.type_() {
-        QEventType::Close => {
+        QEventType::Hide => {
             let object2 = object as *mut QObject;
             if let Some(w) = common::cast_qobject_to_uimember_mut::<Tray>(object) {
                 if !w.as_inner_mut().skip_callbacks {
@@ -109,7 +111,10 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
                         }
                     }
                 }
+                let mut app = super::application::QtApplication::get();
+                app.as_inner_mut().trays.retain(|ww| *ww == unsafe { w.as_inner_mut().native_id() });
             }
+            dbg!("hide");
         }
         _ => {}
     }

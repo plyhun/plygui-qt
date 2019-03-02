@@ -17,8 +17,8 @@ pub type Application = development::Application<QtApplication>;
 
 pub struct QtApplication {
     inner: CppBox<QApplication>,
-    windows: Vec<QtId>,
-    trays: Vec<QtId>,
+    pub(crate) windows: Vec<QtId>,
+    pub(crate) trays: Vec<QtId>,
 }
 
 impl ApplicationInner for QtApplication {
