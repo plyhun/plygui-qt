@@ -45,7 +45,7 @@ impl CloseableInner for QtWindow {
 }
 
 impl WindowInner for QtWindow {
-    fn with_params(title: &str, start_size: types::WindowStartSize, _menu: types::WindowMenu) -> Box<Member<SingleContainer<::plygui_api::development::Window<Self>>>> {
+    fn with_params(title: &str, start_size: types::WindowStartSize, _menu: types::Menu) -> Box<Member<SingleContainer<::plygui_api::development::Window<Self>>>> {
         use plygui_api::controls::HasLabel;
         
         let window = QMainWindow::new();
@@ -114,13 +114,21 @@ impl WindowInner for QtWindow {
         }
         window
     }
-    fn on_frame(&mut self, cb: callbacks::Frame) {
+    fn on_frame(&mut self, cb: callbacks::OnFrame) {
         let qobject: &mut QObject = self.window.as_mut().static_cast_mut();
         let _ = cast_qobject_to_uimember_mut::<Window>(qobject).unwrap().as_inner_mut().as_inner_mut().base_mut().sender().send(cb);
     }
-    fn on_frame_async_feeder(&mut self) -> callbacks::AsyncFeeder<callbacks::Frame> {
+    fn on_frame_async_feeder(&mut self) -> callbacks::AsyncFeeder<callbacks::OnFrame> {
         let qobject: &mut QObject = self.window.as_mut().static_cast_mut();
         cast_qobject_to_uimember_mut::<Window>(qobject).unwrap().as_inner_mut().as_inner_mut().base_mut().sender().clone().into()
+    }
+    fn size(&self) -> (u16, u16) {
+        let size = self.window.size();
+        (size.width() as u16, size.height() as u16)
+    }
+    fn position(&self) -> (i32, i32) {
+        let pos = self.window.pos();
+        (pos.x() as i32, pos.y() as i32)
     }
 }
 
@@ -183,28 +191,31 @@ impl ContainerInner for QtWindow {
         None
     }
 }
-
-impl MemberInner for QtWindow {
+impl HasNativeIdInner for QtWindow {
     type Id = common::QtId;
 
-    fn on_set_visibility(&mut self, base: &mut MemberBase) {
-        if types::Visibility::Visible == base.visibility {
+    unsafe fn native_id(&self) -> Self::Id {
+        QtId::from(self.window.static_cast() as *const QObject as *mut QObject)
+    }
+}
+impl HasSizeInner for QtWindow {
+    fn on_size_set(&mut self, _: &mut MemberBase, (w, h): (u16, u16)) -> bool {
+        self.window.set_fixed_size((w as i32, h as i32));
+        true
+    }
+}
+impl HasVisibilityInner for QtWindow {
+    fn on_visibility_set(&mut self, _: &mut MemberBase, value: types::Visibility) -> bool {
+        if types::Visibility::Visible == value {
             self.window.slots().set_visible();
         } else {
             self.window.slots().set_hidden();
         }
-    }
-
-    fn size(&self) -> (u16, u16) {
-        let size = self.window.size();
-        (size.width() as u16, size.height() as u16)
-    }
-
-    unsafe fn native_id(&self) -> Self::Id {
-        QtId::from(self.window.static_cast() as *const QWidget as *mut QWidget)
+        true
     }
 }
-
+impl MemberInner for QtWindow {
+}
 impl Drop for QtWindow {
     fn drop(&mut self) {
         self.filter.clear();
@@ -215,12 +226,12 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
     match event.type_() {
         QEventType::Resize => {
             if let Some(window) = common::cast_qobject_to_uimember_mut::<Window>(object) {
-                let (width, height) = window.as_inner().as_inner().size();
+                let (width, height) = window.as_inner().as_inner().as_inner().size();
                 if let Some(ref mut child) = window.as_inner_mut().as_inner_mut().as_inner_mut().child {
                     child.measure(width, height);
                     child.draw(Some((0, 0)));
                 }
-                window.call_on_resize(width, height);
+                window.call_on_size(width, height);
             }
         }
         QEventType::Close => {

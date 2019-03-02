@@ -84,30 +84,14 @@ impl MessageInner for QtMessage {
         }).ok_or(())
     }
 }
-
-impl MemberInner for QtMessage {
+impl HasNativeIdInner for QtMessage {
     type Id = common::QtId;
 
-    fn on_set_visibility(&mut self, base: &mut MemberBase) {
-        unsafe {
-            let w = self.message.static_cast_mut() as *mut QWidget;
-            if types::Visibility::Visible == base.visibility {
-                (&mut *w).slots().set_visible();
-            } else {
-                (&mut *w).slots().set_hidden();
-            }
-        }
-    }
-
-    fn size(&self) -> (u16, u16) {
-        let size = self.message.size();
-        (size.width() as u16, size.height() as u16)
-    }
-
     unsafe fn native_id(&self) -> Self::Id {
-        QtId::from(self.message.static_cast() as *const QWidget as *mut QWidget)
+        QtId::from(self.message.static_cast() as *const QObject as *mut QObject)
     }
 }
+impl MemberInner for QtMessage {}
 
 impl Drop for QtMessage {
     fn drop(&mut self) {
@@ -131,14 +115,8 @@ fn severity_to_message_icon(severity: types::MessageSeverity) -> Icon {
     }
 }
 
-fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
+fn event_handler(_: &mut QObject, event: &mut QEvent) -> bool {
     match event.type_() {
-        QEventType::Resize => {
-            if let Some(message) = common::cast_qobject_to_uimember_mut::<Message>(object) {
-                let (width, height) = message.as_inner().size();
-                message.call_on_resize(width, height);
-            }
-        },
         QEventType::Leave => {
             dbg!("close");
         }

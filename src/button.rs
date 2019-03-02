@@ -33,7 +33,7 @@ impl HasLabelInner for QtButton {
 }
 
 impl ClickableInner for QtButton {
-    fn on_click(&mut self, cb: Option<callbacks::Click>) {
+    fn on_click(&mut self, cb: Option<callbacks::OnClick>) {
         self.h_left_clicked.0 = cb.is_some();
         if cb.is_some() {
             let mut cb = cb.unwrap();
@@ -90,9 +90,10 @@ impl ControlInner for QtButton {
         self.base.root_mut()
     }
     fn on_added_to_container(&mut self, member: &mut MemberBase, control: &mut ControlBase, _parent: &dyn controls::Container, x: i32, y: i32, pw: u16, ph: u16) {
+        control.coords = Some((x, y));
         self.measure(member, control, pw, ph);
         self.base.dirty = false;
-        self.draw(member, control, Some((x, y)));
+        self.draw(member, control);
     }
     fn on_removed_from_container(&mut self, _member: &mut MemberBase, _control: &mut ControlBase, _: &dyn controls::Container) {}
 
@@ -105,29 +106,34 @@ impl ControlInner for QtButton {
         fill_from_markup_callbacks!(self, markup, registry, ["on_click" => FnMut(&mut controls::Button)]);
     }
 }
-
-impl MemberInner for QtButton {
+impl HasNativeIdInner for QtButton {
     type Id = common::QtId;
 
-    fn on_set_visibility(&mut self, base: &mut MemberBase) {
-        self.base.set_visibility(base.visibility);
-        self.base.invalidate()
-    }
-    fn size(&self) -> (u16, u16) {
-        self.base.measured_size
-    }
     unsafe fn native_id(&self) -> Self::Id {
-        QtId::from(self.base.widget.as_ref() as *const _ as *mut QWidget)
+        QtId::from(self.base.widget.static_cast() as *const QObject as *mut QObject)
     }
 }
+impl HasVisibilityInner for QtButton {
+    fn on_visibility_set(&mut self, _: &mut MemberBase, value: types::Visibility) -> bool {
+        self.base.set_visibility(value);
+        self.base.invalidate()
+    }
+}
+impl HasSizeInner for QtButton {
+    fn on_size_set(&mut self, _: &mut MemberBase, (width, height): (u16, u16)) -> bool {
+        self.base.widget.set_fixed_size((width as i32, height as i32));
+        true
+    }
+}
+impl MemberInner for QtButton {}
 
 impl Drawable for QtButton {
-    fn draw(&mut self, member: &mut MemberBase, control: &mut ControlBase, coords: Option<(i32, i32)>) {
-        self.base.draw(member, control, coords);
+    fn draw(&mut self, member: &mut MemberBase, control: &mut ControlBase) {
+        self.base.draw(member, control);
     }
-    fn measure(&mut self, member: &mut MemberBase, control: &mut ControlBase, parent_width: u16, parent_height: u16) -> (u16, u16, bool) {
-        let old_size = self.base.measured_size;
-        self.base.measured_size = match member.visibility {
+    fn measure(&mut self, _: &mut MemberBase, control: &mut ControlBase, parent_width: u16, parent_height: u16) -> (u16, u16, bool) {
+        let old_size = control.measured;
+        control.measured = match control.visibility {
             types::Visibility::Gone => (0, 0),
             _ => {
                 let font = self.base.widget.as_ref().font();
@@ -158,11 +164,11 @@ impl Drawable for QtButton {
                 (max(0, w) as u16, max(0, h) as u16)
             }
         };
-        self.base.dirty = self.base.measured_size != old_size;
-        (self.base.measured_size.0, self.base.measured_size.1, self.base.dirty)
+        self.base.dirty = control.measured != old_size;
+        (control.measured.0, control.measured.1, self.base.dirty)
     }
     fn invalidate(&mut self, _member: &mut MemberBase, _control: &mut ControlBase) {
-        self.base.invalidate()
+        self.base.invalidate();
     }
 }
 
@@ -175,12 +181,12 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
     match event.type_() {
         QEventType::Resize => {
             if let Some(ll) = cast_qobject_to_uimember_mut::<Button>(object) {
-                use plygui_api::controls::Member;
+                use plygui_api::controls::HasSize;
 
                 if ll.as_inner().as_inner().base.dirty {
                     ll.as_inner_mut().as_inner_mut().base.dirty = false;
                     let (width, height) = ll.size();
-                    ll.call_on_resize(width, height);
+                    ll.call_on_size(width, height);
                 }
             }
         }

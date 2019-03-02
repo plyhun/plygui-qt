@@ -23,15 +23,15 @@ lazy_static! {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct QtId(ptr::NonNull<QWidget>);
+pub struct QtId(ptr::NonNull<QObject>);
 
-impl From<*mut QWidget> for QtId {
-    fn from(a: *mut QWidget) -> QtId {
+impl From<*mut QObject> for QtId {
+    fn from(a: *mut QObject) -> QtId {
         QtId(ptr::NonNull::new(a).unwrap())
     }
 }
-impl From<QtId> for *mut QWidget {
-    fn from(a: QtId) -> *mut QWidget {
+impl From<QtId> for *mut QObject {
+    fn from(a: QtId) -> *mut QObject {
         a.0.as_ptr()
     }
 }
@@ -42,7 +42,7 @@ impl From<QtId> for usize {
 }
 impl From<usize> for QtId {
     fn from(a: usize) -> QtId {
-        QtId(ptr::NonNull::new(a as *mut QWidget).unwrap())
+        QtId(ptr::NonNull::new(a as *mut QObject).unwrap())
     }
 }
 impl cmp::PartialOrd for QtId {
@@ -56,7 +56,7 @@ impl cmp::Ord for QtId {
     }
 }
 impl ops::Deref for QtId {
-    type Target = QWidget;
+    type Target = QObject;
 
     fn deref(&self) -> &Self::Target {
         unsafe { self.0.as_ref() }
@@ -72,8 +72,6 @@ impl NativeId for QtId {}
 #[repr(C)]
 pub struct QtControlBase<T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> {
     pub widget: CppBox<Q>,
-    pub coords: Option<(i32, i32)>,
-    pub measured_size: (u16, u16),
     pub dirty: bool,
 
     event_callback: CppBox<CustomEventFilter>,
@@ -89,8 +87,6 @@ impl<T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> QtCont
         let mut base = QtControlBase {
             widget: widget,
             event_callback: CustomEventFilter::new(event_callback),
-            coords: None,
-            measured_size: (0, 0),
             dirty: true,
             _marker: marker::PhantomData,
         };
@@ -109,18 +105,15 @@ impl<T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> QtCont
     pub fn as_qwidget_mut(&mut self) -> &mut QWidget {
         self.widget.as_mut().static_cast_mut()
     }
-    pub fn draw(&mut self, _member: &mut MemberBase, control: &mut ControlBase, coords: Option<(i32, i32)>) {
-        if coords.is_some() {
-            self.coords = coords;
-        }
-        if let Some(coords) = self.coords {
+    pub fn draw(&mut self, _member: &mut MemberBase, control: &mut ControlBase) {
+        if let Some(coords) = control.coords {
             self.widget.static_cast_mut().move_((coords.0 as i32, coords.1 as i32));
             match control.layout.width {
                 layout::Size::MatchParent => {
                     self.widget.static_cast_mut().set_minimum_width(1);
                 }
                 _ => {
-                    self.widget.static_cast_mut().set_fixed_width(self.measured_size.0 as i32);
+                    self.widget.static_cast_mut().set_fixed_width(control.measured.0 as i32);
                 }
             }
             match control.layout.height {
@@ -128,20 +121,20 @@ impl<T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> QtCont
                     self.widget.static_cast_mut().set_minimum_height(1);
                 }
                 _ => {
-                    self.widget.static_cast_mut().set_fixed_height(self.measured_size.1 as i32);
+                    self.widget.static_cast_mut().set_fixed_height(control.measured.1 as i32);
                 }
             }
         }
     }
-    pub fn invalidate(&mut self) {
+    pub fn invalidate(&mut self) -> bool {
         use qt_core::cpp_utils::StaticCast;
 
         let parent_widget = self.widget.as_mut().static_cast_mut().parent_widget();
         if parent_widget.is_null() {
-            return;
+            return false;
         }
         if let Some(mparent) = cast_qobject_to_base_mut((unsafe { &mut *parent_widget }).static_cast_mut() as &mut QObject) {
-            let (pw, ph) = mparent.as_member().size();
+            let (pw, ph) = mparent.as_member().is_has_size().unwrap().size();
             let this = cast_qobject_to_uimember_mut::<T>(self.widget.as_mut().static_cast_mut().static_cast_mut()).unwrap();
             let (_, _, changed) = this.measure(pw, ph);
             this.draw(None);
@@ -152,6 +145,7 @@ impl<T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> QtCont
                 }
             }
         }
+        true
     }
     pub fn set_visibility(&mut self, visibility: types::Visibility) {
         let widget = self.widget.as_mut();

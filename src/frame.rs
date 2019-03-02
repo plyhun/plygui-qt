@@ -142,8 +142,9 @@ impl HasLayoutInner for QtFrame {
 
 impl ControlInner for QtFrame {
     fn on_added_to_container(&mut self, member: &mut MemberBase, control: &mut ControlBase, _parent: &dyn controls::Container, x: i32, y: i32, pw: u16, ph: u16) {
+        control.coords = Some((x, y));
         self.measure(member, control, pw, ph);
-        self.draw(member, control, Some((x, y)));
+        self.draw(member, control);
         let margins = self.layout.contents_margins();
         if let Some(ref mut child) = self.child {
             let self2 = unsafe { utils::base_to_impl_mut::<Frame>(member) };
@@ -185,32 +186,39 @@ impl ControlInner for QtFrame {
     }
 }
 
-impl MemberInner for QtFrame {
+impl HasNativeIdInner for QtFrame {
     type Id = common::QtId;
 
-    fn on_set_visibility(&mut self, _base: &mut MemberBase) {
-        self.base.invalidate()
-    }
-    fn size(&self) -> (u16, u16) {
-        self.base.measured_size
-    }
     unsafe fn native_id(&self) -> Self::Id {
-        QtId::from(self.base.widget.as_ref().static_cast() as *const QWidget as *mut QWidget)
+        QtId::from(self.base.widget.static_cast() as *const QObject as *mut QObject)
     }
 }
+impl HasVisibilityInner for QtFrame {
+    fn on_visibility_set(&mut self, _: &mut MemberBase, value: types::Visibility) -> bool {
+        self.base.set_visibility(value);
+        self.base.invalidate()
+    }
+}
+impl HasSizeInner for QtFrame {
+    fn on_size_set(&mut self, _: &mut MemberBase, (width, height): (u16, u16)) -> bool {
+        self.base.widget.set_fixed_size((width as i32, height as i32));
+        true
+    }
+}
+impl MemberInner for QtFrame {}
 
 impl Drawable for QtFrame {
-    fn draw(&mut self, member: &mut MemberBase, control: &mut ControlBase, coords: Option<(i32, i32)>) {
-        self.base.draw(member, control, coords);
+    fn draw(&mut self, member: &mut MemberBase, control: &mut ControlBase) {
+        self.base.draw(member, control);
         let margins = self.base.widget.contents_margins();
         if let Some(ref mut child) = self.child {
             child.draw(Some((margins.left(), margins.top())));
         }
     }
     fn measure(&mut self, member: &mut MemberBase, control: &mut ControlBase, parent_width: u16, parent_height: u16) -> (u16, u16, bool) {
-        let old_size = self.base.measured_size;
+        let old_size = control.measured;
         let (lm, tm, rm, bm) = self.layout_margin(member).into();
-        self.base.measured_size = match member.visibility {
+        control.measured = match control.visibility {
             types::Visibility::Gone => (0, 0),
             _ => {
                 let font = self.base.widget.as_ref().font();
@@ -258,10 +266,10 @@ impl Drawable for QtFrame {
                 (cmp::max(0, w) as u16, cmp::max(0, h) as u16)
             }
         };
-        (self.base.measured_size.0, self.base.measured_size.1, self.base.measured_size != old_size)
+        (control.measured.0, control.measured.1, control.measured != old_size)
     }
     fn invalidate(&mut self, _member: &mut MemberBase, _control: &mut ControlBase) {
-        self.base.invalidate()
+        self.base.invalidate();
     }
 }
 
@@ -274,12 +282,12 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
     match event.type_() {
         QEventType::Resize => {
             if let Some(fr) = cast_qobject_to_uimember_mut::<Frame>(object) {
-                use plygui_api::controls::Member;
+                use plygui_api::controls::HasSize;
 
                 if fr.as_inner().as_inner().as_inner().base.dirty {
                     fr.as_inner_mut().as_inner_mut().as_inner_mut().base.dirty = false;
                     let (width, height) = fr.size();
-                    fr.call_on_resize(width, height);
+                    fr.call_on_size(width, height);
                 }
             }
         }

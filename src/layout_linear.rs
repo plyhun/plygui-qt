@@ -55,25 +55,30 @@ impl Drop for QtLinearLayout {
     }
 }
 
-impl MemberInner for QtLinearLayout {
+impl HasNativeIdInner for QtLinearLayout {
     type Id = common::QtId;
 
-    fn on_set_visibility(&mut self, _base: &mut MemberBase) {
-        self.base.invalidate()
-    }
-
-    fn size(&self) -> (u16, u16) {
-        self.base.measured_size
-    }
-
     unsafe fn native_id(&self) -> Self::Id {
-        QtId::from(self.base.widget.as_ref().static_cast() as *const QWidget as *mut QWidget)
+        QtId::from(self.base.widget.static_cast() as *const QObject as *mut QObject)
     }
 }
+impl HasVisibilityInner for QtLinearLayout {
+    fn on_visibility_set(&mut self, _: &mut MemberBase, value: types::Visibility) -> bool {
+        self.base.set_visibility(value);
+        self.base.invalidate()
+    }
+}
+impl HasSizeInner for QtLinearLayout {
+    fn on_size_set(&mut self, _: &mut MemberBase, (width, height): (u16, u16)) -> bool {
+        self.base.widget.set_fixed_size((width as i32, height as i32));
+        true
+    }
+}
+impl MemberInner for QtLinearLayout {}
 
 impl Drawable for QtLinearLayout {
-    fn draw(&mut self, member: &mut MemberBase, control: &mut ControlBase, coords: Option<(i32, i32)>) {
-        self.base.draw(member, control, coords);
+    fn draw(&mut self, member: &mut MemberBase, control: &mut ControlBase) {
+        self.base.draw(member, control);
 
         let orientation = self.layout_orientation();
         let margins = self.layout.contents_margins();
@@ -93,9 +98,9 @@ impl Drawable for QtLinearLayout {
         use std::cmp::max;
 
         let orientation = self.layout_orientation();
-        let old_size = self.base.measured_size;
+        let old_size = control.measured;
         let (lm, tm, rm, bm) = self.layout_margin(member).into();
-        self.base.measured_size = match member.visibility {
+        control.measured = match control.visibility {
             types::Visibility::Gone => (0, 0),
             _ => {
                 let mut measured = false;
@@ -156,11 +161,11 @@ impl Drawable for QtLinearLayout {
                 (w, h)
             }
         };
-        self.base.dirty = self.base.measured_size != old_size;
-        (self.base.measured_size.0, self.base.measured_size.1, self.base.dirty)
+        self.base.dirty = control.measured != old_size;
+        (control.measured.0, control.measured.1, self.base.dirty)
     }
     fn invalidate(&mut self, _member: &mut MemberBase, _control: &mut ControlBase) {
-        self.base.invalidate()
+        self.base.invalidate();
     }
 }
 
@@ -176,9 +181,10 @@ impl HasLayoutInner for QtLinearLayout {
 
 impl ControlInner for QtLinearLayout {
     fn on_added_to_container(&mut self, member: &mut MemberBase, control: &mut ControlBase, _parent: &dyn controls::Container, x: i32, y: i32, pw: u16, ph: u16) {
+        control.coords = Some((x, y));
         self.measure(member, control, pw, ph);
         self.base.dirty = false;
-        self.draw(member, control, Some((x, y)));
+        self.draw(member, control);
         let margins = self.layout.contents_margins();
 
         let orientation = self.layout_orientation();
@@ -337,10 +343,10 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
     match event.type_() {
         QEventType::Resize => {
             if let Some(ll) = cast_qobject_to_uimember_mut::<LinearLayout>(object) {
-                use plygui_api::controls::Member;
+                use plygui_api::controls::HasSize;
 
                 let (width, height) = ll.size();
-                ll.call_on_resize(width, height);
+                ll.call_on_size(width, height);
             }
         }
         QEventType::Destroy => {

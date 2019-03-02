@@ -8,7 +8,7 @@ pub use qt_core_custom_events;
 pub use qt_gui;
 pub use qt_widgets;
 
-
+pub use plygui_api::external;
 
 #[macro_use]
 pub mod common;
@@ -21,6 +21,7 @@ mod splitted;
 mod window;
 mod text;
 mod message;
+mod image;
 
 #[cfg(feature = "markup")]
 pub fn register_members(registry: &mut plygui_api::markup::MarkupRegistry) {
@@ -47,5 +48,6 @@ pub mod prelude {
         pub use crate::window::Window;
         pub use crate::text::Text;
         pub use crate::message::Message;
+        pub use crate::image::Image;
     }
 }

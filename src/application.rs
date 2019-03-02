@@ -16,25 +16,25 @@ use std::process::exit;
 pub type Application = development::Application<QtApplication>;
 
 pub struct QtApplication {
-    _inner: CppBox<QApplication>,
+    inner: CppBox<QApplication>,
     windows: Vec<QtId>,
 }
 
-impl NewApplication<QtApplication> for QtApplication {
-    fn init_with_name(name: &str) -> Box<Application> {
-        //use plygui_api::HasInner;
-
-        let inner = unsafe { QApplication::new(QCoreApplicationArgs::from_real().get()) };
-        QCoreApplication::set_application_name(&String::from_std_str(name));
-        Box::new(development::Application::with_inner(QtApplication { _inner: inner, windows: Vec::with_capacity(1) }, ()))
-    }
-}
-
 impl ApplicationInner for QtApplication {
-    fn new_window(&mut self, title: &str, size: types::WindowStartSize, menu: types::WindowMenu) -> Box<dyn controls::Window> {
-        let w = super::window::Window::with_params(title, size, menu);
+    fn get() -> Box<Application> {
+        let inner = unsafe { QApplication::new(QCoreApplicationArgs::from_real().get()) };
+        //QCoreApplication::set_application_name(&String::from_std_str(name));
+        Box::new(development::Application::with_inner(QtApplication { inner: inner, windows: Vec::with_capacity(1) }, ()))
+    }
+    fn new_window(&mut self, title: &str, size: types::WindowStartSize, menu: types::Menu) -> Box<dyn controls::Window> {
+        use plygui_api::controls::HasNativeId;
+
+        let w = super::window::QtWindow::with_params(title, size, menu);
         self.windows.push(unsafe { w.native_id().into() });
         w
+    }
+    fn new_tray(&mut self, title: &str, menu: types::Menu) -> Box<dyn controls::Tray> {
+        unimplemented!()
     }
     fn name<'a>(&'a self) -> Cow<'a, str> {
         let name = QCoreApplication::application_name().to_utf8();
@@ -48,9 +48,10 @@ impl ApplicationInner for QtApplication {
     }
     fn find_member_by_id_mut(&mut self, id: ids::Id) -> Option<&mut dyn controls::Member> {
         use plygui_api::controls::{Container, Member};
-
+        use std::ops::DerefMut;
+        
         for window in self.windows.as_mut_slice() {
-            let window = common::cast_qobject_to_uimember_mut::<window::Window>(window.static_cast_mut() as &mut QObject).unwrap();
+            let window = common::cast_qobject_to_uimember_mut::<window::Window>(window.deref_mut()).unwrap();
             if window.id() == id {
                 return Some(window);
             } else {
@@ -63,7 +64,7 @@ impl ApplicationInner for QtApplication {
         use plygui_api::controls::{Container, Member};
 
         for window in self.windows.as_slice() {
-            let window = common::cast_qobject_to_uimember::<window::Window>(window.static_cast() as &QObject).unwrap();
+            let window = common::cast_qobject_to_uimember::<window::Window>(window).unwrap();
             if window.id() == id {
                 return Some(window);
             } else {
@@ -73,7 +74,13 @@ impl ApplicationInner for QtApplication {
         None
     }
 }
-
+impl HasNativeIdInner for QtApplication {
+    type Id = common::QtId;
+    
+    unsafe fn native_id(&self) -> Self::Id {
+        QtId::from(self.inner.static_cast() as *const QObject as *mut QObject)
+    }
+}
 impl Drop for QtApplication {
     fn drop(&mut self) {
         QApplication::close_all_windows();
