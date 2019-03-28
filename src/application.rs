@@ -16,6 +16,7 @@ use std::process::exit;
 pub type Application = development::Application<QtApplication>;
 
 pub struct QtApplication {
+    _args: QCoreApplicationArgs,
     inner: CppBox<QApplication>,
     pub(crate) windows: Vec<QtId>,
     pub(crate) trays: Vec<QtId>,
@@ -23,9 +24,10 @@ pub struct QtApplication {
 
 impl ApplicationInner for QtApplication {
     fn get() -> Box<Application> {
-        let inner = unsafe { QApplication::new(QCoreApplicationArgs::from_real().get()) };
+        let mut args = QCoreApplicationArgs::from_real();
+        let inner = unsafe { QApplication::new(args.get()) };
         //QCoreApplication::set_application_name(&String::from_std_str(name));
-        Box::new(development::Application::with_inner(QtApplication { inner: inner, windows: Vec::with_capacity(1), trays: vec![] }, ()))
+        Box::new(development::Application::with_inner(QtApplication { _args: args, inner: inner, windows: Vec::with_capacity(1), trays: vec![] }, ()))
     }
     fn new_window(&mut self, title: &str, size: types::WindowStartSize, menu: types::Menu) -> Box<dyn controls::Window> {
         use plygui_api::controls::HasNativeId;
