@@ -1,5 +1,4 @@
-use super::common::*;
-use super::*;
+use crate::common::{self, *};
 
 use qt_widgets::message_box::{ButtonRole, Icon, MessageBox as QMessageBox};
 
@@ -125,4 +124,4 @@ fn event_handler(_: &mut QObject, event: &mut QEvent) -> bool {
     false
 }
 
-impl_all_defaults!(Message);
+default_impls_as!(Message);

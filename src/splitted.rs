@@ -1,5 +1,4 @@
-use super::common::*;
-use super::*;
+use crate::common::{self, *};
 
 use qt_core::list::ListCInt;
 use qt_core::slots::SlotCInt;
@@ -410,8 +409,6 @@ pub(crate) fn spawn() -> Box<controls::Control> {
 	Splitted::with_orientation(layout::Orientation::Vertical).into_control()
 }*/
 
-impl_all_defaults!(Splitted);
-
 fn splitter_moved(ll: &mut Splitted, position: i32) {
     use plygui_api::controls::{HasOrientation, HasSize};
 
@@ -459,3 +456,4 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
     }
     false
 }
+default_impls_as!(Splitted);

@@ -1,5 +1,4 @@
-use super::common::*;
-use super::*;
+use crate::common::{self, *};
 
 use qt_widgets::box_layout::{BoxLayout as QBoxLayout, Direction};
 use qt_widgets::frame::Frame as QFrame;
@@ -337,7 +336,7 @@ pub(crate) fn spawn() -> Box<dyn controls::Control> {
     LinearLayout::with_orientation(layout::Orientation::Vertical).into_control()
 }
 
-impl_all_defaults!(LinearLayout);
+default_impls_as!(LinearLayout);
 
 fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
     match event.type_() {

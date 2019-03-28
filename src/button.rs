@@ -1,5 +1,4 @@
-use super::common::*;
-use super::*;
+use crate::common::{self, *};
 
 use qt_core::connection::Signal;
 use qt_core::rect::Rect as QRect;
@@ -201,4 +200,4 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
     }
     false
 }
-impl_all_defaults!(Button);
+default_impls_as!(Button);

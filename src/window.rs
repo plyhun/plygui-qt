@@ -1,5 +1,4 @@
-use super::common::*;
-use super::*;
+use crate::common::{self, *};
 
 use qt_widgets::application::Application as QApplication;
 use qt_widgets::main_window::MainWindow as QMainWindow;
@@ -35,9 +34,9 @@ impl HasLabelInner for QtWindow {
 }
 
 impl CloseableInner for QtWindow {
-    fn close(&mut self, skip_callbacks: bool) {
+    fn close(&mut self, skip_callbacks: bool) -> bool {
         self.skip_callbacks = skip_callbacks;
-        self.window.close();
+        self.window.close()
     }
     fn on_close(&mut self, callback: Option<callbacks::Action>) {
         self.on_close = callback;
@@ -247,8 +246,7 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
                     }
                 }
                 let mut app = super::application::QtApplication::get();
-                app.as_inner_mut().windows.retain(|ww| *ww == unsafe { w.as_inner_mut().as_inner_mut().as_inner_mut().native_id() });
-                dbg!(app.as_inner_mut().name());
+                app.as_inner_mut().windows.retain(|ww| *ww != unsafe { w.as_inner_mut().as_inner_mut().as_inner_mut().native_id() });
             }
         }
         _ => {}
@@ -256,4 +254,4 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
     false
 }
 
-impl_all_defaults!(Window);
+default_impls_as!(Window);

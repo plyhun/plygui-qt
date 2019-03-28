@@ -1,8 +1,8 @@
-use super::common::*;
-use super::*;
+use crate::common::{self, *};
+use crate::window::Window;
+use crate::tray::Tray;
 
 use qt_widgets::application::Application as QApplication;
-//use qt_widgets::main_window::{MainWindow as QMainWindow};
 use qt_core::core_application::{CoreApplication as QCoreApplication, CoreApplicationArgs as QCoreApplicationArgs};
 use qt_core::cpp_utils::CppBox;
 use qt_core::string::String;
@@ -41,6 +41,12 @@ impl ApplicationInner for QtApplication {
         self.trays.push(unsafe { t.native_id().into() });
         t
     }
+    fn remove_window(&mut self, id: Self::Id) {
+        self.windows.retain(|w| *w != id);
+    }
+    fn remove_tray(&mut self, id: Self::Id) {
+        self.trays.retain(|t| *t != id);
+    }
     fn name<'a>(&'a self) -> Cow<'a, str> {
         let name = QCoreApplication::application_name().to_utf8();
         unsafe {
@@ -56,7 +62,7 @@ impl ApplicationInner for QtApplication {
         use std::ops::DerefMut;
         
         for window in self.windows.as_mut_slice() {
-            let window = common::cast_qobject_to_uimember_mut::<window::Window>(window.deref_mut()).unwrap();
+            let window = common::cast_qobject_to_uimember_mut::<Window>(window.deref_mut()).unwrap();
             if window.id() == id {
                 return Some(window);
             } else {
@@ -69,7 +75,7 @@ impl ApplicationInner for QtApplication {
         use plygui_api::controls::{Container, Member};
 
         for window in self.windows.as_slice() {
-            let window = common::cast_qobject_to_uimember::<window::Window>(window).unwrap();
+            let window = common::cast_qobject_to_uimember::<Window>(window).unwrap();
             if window.id() == id {
                 return Some(window);
             } else {
@@ -77,6 +83,36 @@ impl ApplicationInner for QtApplication {
             }
         }
         None
+    }
+    fn exit(&mut self, skip_on_close: bool) -> bool {
+        use crate::plygui_api::controls::Closeable;
+
+        let mut n = self.windows.len() as isize;
+        let mut i = n - 1;
+        while i >= 0 {
+            let window = &mut self.windows[i as usize];
+            if let Some(window) = common::cast_qobject_to_uimember_mut::<Window>(window) {
+                if !window.close(skip_on_close) {
+                    return false;
+                }
+            }
+            i -= 1;
+        }
+
+        n = self.trays.len() as isize;
+        i = n - 1;
+        while i >= 0 {
+            let tray = &mut self.trays[i as usize];
+            if let Some(tray) = common::cast_qobject_to_uimember_mut::<Tray>(tray) {
+                if !tray.close(skip_on_close) {
+                    return false;
+                }
+            }
+            i -= 1;
+        }
+        
+        QCoreApplication::exit(0);
+        true
     }
 }
 impl HasNativeIdInner for QtApplication {

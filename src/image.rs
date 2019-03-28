@@ -1,7 +1,5 @@
-use super::common::*;
-use super::*;
-
-use external::image;
+use crate::common::{self, *};
+use crate::external::image;
 
 use qt_core::qt::{AlignmentFlag, AspectRatioMode};
 use qt_core::rect::{Rect as QRect};
@@ -202,4 +200,4 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
     false
 }
 
-impl_all_defaults!(Image);
+default_impls_as!(Image);

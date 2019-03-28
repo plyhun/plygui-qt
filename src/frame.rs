@@ -1,5 +1,4 @@
-use super::common::*;
-use super::*;
+use crate::common::{self, *};
 
 use qt_core::rect::Rect as QRect;
 use qt_gui::font_metrics::FontMetrics as QFontMetrics;
@@ -306,4 +305,4 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
     false
 }
 
-impl_all_defaults!(Frame);
+default_impls_as!(Frame);

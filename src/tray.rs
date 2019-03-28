@@ -1,5 +1,4 @@
-use super::common::*;
-use super::*;
+use crate::common::{self, *};
 
 use qt_widgets::application::Application as QApplication;
 use qt_widgets::style::StandardPixmap;
@@ -31,9 +30,10 @@ impl HasLabelInner for QtTray {
 }
 
 impl CloseableInner for QtTray {
-    fn close(&mut self, skip_callbacks: bool) {
+    fn close(&mut self, skip_callbacks: bool) -> bool {
         self.skip_callbacks = skip_callbacks;
         self.tray.hide();
+        true
     }
     fn on_close(&mut self, callback: Option<callbacks::Action>) {
         self.on_close = callback;
@@ -121,4 +121,4 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
     false
 }
 
-impl_all_defaults!(Tray);
+default_impls_as!(Tray);
