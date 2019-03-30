@@ -3,7 +3,6 @@ use crate::common::{self, *};
 use qt_widgets::application::Application as QApplication;
 use qt_widgets::main_window::MainWindow as QMainWindow;
 use qt_core::timer::Timer;
-use qt_core::slots::SlotNoArgs;
 
 use std::borrow::Cow;
 
@@ -16,6 +15,7 @@ pub struct QtWindow {
     filter: CppBox<CustomEventFilter>,
     timer: CppBox<Timer>,
     queue: SlotNoArgs<'static>,
+    menu: Vec<(callbacks::Action, SlotNoArgs<'static>)>,
     on_close: Option<callbacks::Action>,
     skip_callbacks: bool,
 }
@@ -44,7 +44,7 @@ impl CloseableInner for QtWindow {
 }
 
 impl WindowInner for QtWindow {
-    fn with_params(title: &str, start_size: types::WindowStartSize, _menu: types::Menu) -> Box<Member<SingleContainer<::plygui_api::development::Window<Self>>>> {
+    fn with_params(title: &str, start_size: types::WindowStartSize, menu: types::Menu) -> Box<Member<SingleContainer<::plygui_api::development::Window<Self>>>> {
         use plygui_api::controls::HasLabel;
         
         let window = QMainWindow::new();
@@ -58,6 +58,7 @@ impl WindowInner for QtWindow {
                         filter: CustomEventFilter::new(event_handler),
                         timer: Timer::new(),
                         queue: SlotNoArgs::new(move || {}),
+                        menu: if menu.is_some() { Vec::new() } else { Vec::with_capacity(0) },
                         on_close: None,
                         skip_callbacks: false,
                     },
@@ -109,6 +110,41 @@ impl WindowInner for QtWindow {
             });
             window.timer.signals().timeout().connect(&window.queue);
             window.timer.start(());
+            
+            if let Some(mut items) = menu {
+                let menu_bar = unsafe { &mut *window.window.menu_bar() };
+                
+                fn slot_spawn(id: usize, selfptr: *mut Window) -> SlotNoArgs<'static> {
+                    SlotNoArgs::new(move || {
+                        let window = unsafe {&mut *selfptr};
+                        if let Some((a, _)) = window.as_inner_mut().as_inner_mut().as_inner_mut().menu.get_mut(id) {
+                            let window = unsafe {&mut *selfptr};
+                            (a.as_mut())(window);
+                        }
+                    })
+                }
+                
+                for item in items.drain(..) {
+                    match item {
+                        types::MenuItem::Action(label, action, _) => {
+                            let id = window.menu.len();
+                            let action = (action, slot_spawn(id, selfptr as *mut Window));
+                            let qaction = unsafe { &mut *menu_bar.add_action(&QString::from_std_str(label)) };
+                            qaction.signals().triggered().connect(&window.queue);
+                            window.menu.push(action);
+                        },
+                        types::MenuItem::Sub(label, items, _) => {
+                            let submenu = (&mut *menu_bar).add_menu(&QString::from_std_str(label));
+                            common::make_menu(unsafe { &mut *submenu }, items, &mut window.menu, slot_spawn, selfptr as *mut Window);
+                        },
+                        types::MenuItem::Delimiter => {
+                            menu_bar.add_separator();
+                        }
+                    }
+                }
+                
+            }
+            
             window.window.show();
         }
         window

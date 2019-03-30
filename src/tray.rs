@@ -12,6 +12,7 @@ pub type Tray = Member<QtTray>;
 pub struct QtTray {
     tray: CppBox<QSystemTrayIcon>,
     filter: CppBox<CustomEventFilter>,
+    menu: Option<(CppBox<QMenu>, Vec<(callbacks::Action, SlotNoArgs<'static>)>)>,
     on_close: Option<callbacks::Action>,
     skip_callbacks: bool,
 }
@@ -41,7 +42,7 @@ impl CloseableInner for QtTray {
 }
 
 impl TrayInner for QtTray {
-    fn with_params(title: &str, _menu: types::Menu) -> Box<Member<Self>> {
+    fn with_params(title: &str, menu: types::Menu) -> Box<Member<Self>> {
         use plygui_api::controls::HasLabel;
         
         let icon = unsafe{&mut *QApplication::style()}.standard_icon(StandardPixmap::DesktopIcon);
@@ -51,6 +52,7 @@ impl TrayInner for QtTray {
             QtTray {
                 tray: tray,
                 filter: CustomEventFilter::new(event_handler),
+                menu: None,
                 on_close: None,
                 skip_callbacks: false,
             },
@@ -62,6 +64,7 @@ impl TrayInner for QtTray {
         }
         tray.set_label(title);
         {
+            let selfptr = tray.as_mut() as *mut Tray;
             let tray = tray.as_inner_mut();
             //tray.tray.set_size_policy((QPolicy::Ignored, QPolicy::Ignored));
             //tray.tray.set_minimum_size((1, 1));
@@ -71,6 +74,29 @@ impl TrayInner for QtTray {
                 qobject.install_event_filter(filter);
             }
             tray.tray.set_icon(&icon);
+            
+            if let Some(items) = menu {
+                tray.menu = Some((QMenu::new(()), Vec::new()));
+                if let Some((ref mut context_menu, ref mut storage)) = tray.menu {
+                    fn slot_spawn(id: usize, selfptr: *mut Tray) -> SlotNoArgs<'static> {
+                        SlotNoArgs::new(move || {
+                            let tray = unsafe {&mut *selfptr};
+                            if let Some((_, ref mut menu)) = tray.as_inner_mut().menu {
+                                if let Some((a, _)) = menu.get_mut(id) {
+                                    let tray = unsafe {&mut *selfptr};
+                                    (a.as_mut())(tray);
+                                }
+                            }
+                        })
+                    }
+                    
+                    common::make_menu(context_menu, items, storage, slot_spawn, selfptr);
+                    unsafe { tray.tray.set_context_menu(context_menu.as_mut_ptr()); }
+                } else {
+                    unreachable!();
+                }
+            }
+            
             tray.tray.show();
         }
         tray
