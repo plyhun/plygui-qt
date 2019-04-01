@@ -281,8 +281,7 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
                         }
                     }
                 }
-                let mut app = super::application::QtApplication::get();
-                app.as_inner_mut().windows.retain(|ww| *ww != unsafe { w.as_inner_mut().as_inner_mut().as_inner_mut().native_id() });
+                crate::application::Application::get().as_any_mut().downcast_mut::<crate::application::Application>().unwrap().as_inner_mut().remove_window(unsafe { w.as_inner_mut().as_inner_mut().as_inner_mut().native_id() });
             }
         }
         _ => {}

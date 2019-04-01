@@ -3,6 +3,7 @@ use crate::window::Window;
 use crate::tray::Tray;
 
 use qt_widgets::application::Application as QApplication;
+use qt_gui::gui_application::GuiApplication as QGuiApplication;
 use qt_core::core_application::{CoreApplication as QCoreApplication, CoreApplicationArgs as QCoreApplicationArgs};
 use qt_core::cpp_utils::CppBox;
 use qt_core::string::String;
@@ -26,6 +27,7 @@ impl ApplicationInner for QtApplication {
     fn get() -> Box<Application> {
         let mut args = QCoreApplicationArgs::from_real();
         let inner = unsafe { QApplication::new(args.get()) };
+        QGuiApplication::set_quit_on_last_window_closed(false);
         //QCoreApplication::set_application_name(&String::from_std_str(name));
         Box::new(development::Application::with_inner(QtApplication { _args: args, inner: inner, windows: Vec::with_capacity(1), trays: vec![] }, ()))
     }
