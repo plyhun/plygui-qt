@@ -33,7 +33,16 @@ impl HasLabelInner for QtTray {
 impl CloseableInner for QtTray {
     fn close(&mut self, skip_callbacks: bool) -> bool {
         self.skip_callbacks = skip_callbacks;
+        if !skip_callbacks {
+            if let Some(ref mut on_close) = self.on_close {
+                let w2 = common::cast_qobject_to_uimember_mut::<Tray>(self.tray.as_mut().static_cast_mut() as &mut QObject).unwrap();
+                if !(on_close.as_mut())(w2) {
+                    return false;
+                }
+            }
+        }
         self.tray.hide();
+        crate::application::Application::get().as_any_mut().downcast_mut::<crate::application::Application>().unwrap().as_inner_mut().remove_tray(unsafe { self.native_id() });
         true
     }
     fn on_close(&mut self, callback: Option<callbacks::Action>) {
@@ -124,6 +133,7 @@ impl MemberInner for QtTray {
 }
 
 fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
+    dbg!(event.type_());
     match event.type_() {
         QEventType::Hide => {
             let object2 = object as *mut QObject;
@@ -137,9 +147,8 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
                         }
                     }
                 }
-                crate::application::Application::get().as_any_mut().downcast_mut::<crate::application::Application>().unwrap().as_inner_mut().remove_window(unsafe { w.as_inner_mut().native_id() });
+                crate::application::Application::get().as_any_mut().downcast_mut::<crate::application::Application>().unwrap().as_inner_mut().remove_tray(unsafe { w.as_inner_mut().native_id() });
             }
-            dbg!("hide");
         }
         _ => {}
     }

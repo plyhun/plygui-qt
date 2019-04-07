@@ -144,7 +144,6 @@ impl WindowInner for QtWindow {
                 }
                 
             }
-            
             window.window.show();
         }
         window

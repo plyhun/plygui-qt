@@ -23,6 +23,17 @@ pub struct QtApplication {
     pub(crate) trays: Vec<QtId>,
 }
 
+impl QtApplication {
+    fn maybe_exit(&mut self) -> bool {
+        if self.windows.len() < 1 && self.trays.len() < 1 {
+            QCoreApplication::exit(0);
+            true
+        } else {
+            false
+        }
+    }
+}
+
 impl ApplicationInner for QtApplication {
     fn get() -> Box<Application> {
         let mut args = QCoreApplicationArgs::from_real();
@@ -47,9 +58,11 @@ impl ApplicationInner for QtApplication {
     }
     fn remove_window(&mut self, id: Self::Id) {
         self.windows.retain(|w| *w != id);
+        self.maybe_exit();
     }
     fn remove_tray(&mut self, id: Self::Id) {
         self.trays.retain(|t| *t != id);
+        self.maybe_exit();
     }
     fn name<'a>(&'a self) -> Cow<'a, str> {
         let name = QCoreApplication::application_name().to_utf8();
@@ -114,9 +127,7 @@ impl ApplicationInner for QtApplication {
             }
             i -= 1;
         }
-        
-        QCoreApplication::exit(0);
-        true
+        self.maybe_exit()
     }
 }
 impl HasNativeIdInner for QtApplication {
