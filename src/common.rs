@@ -129,8 +129,6 @@ impl<T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> QtCont
         }
     }
     pub fn invalidate(&mut self) -> bool {
-        use qt_core::cpp_utils::StaticCast;
-
         let parent_widget = self.widget.as_mut().static_cast_mut().parent_widget();
         if parent_widget.is_null() {
             return false;

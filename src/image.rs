@@ -34,14 +34,9 @@ impl ImageInner for QtImage {
         ));
 
         unsafe {
-            use qt_core::cpp_utils::StaticCast;
             let ptr = i.as_ref() as *const _ as u64;
             let qo: &mut QObject = i.as_inner_mut().as_inner_mut().base.widget.static_cast_mut();
             qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::new0(ptr));
-        }
-        {
-            let (_, c, i) = i.as_parts_mut();
-            i.update_image(c);
         }
         i.as_inner_mut().as_inner_mut().base.widget.set_alignment(Flags::from_enum(AlignmentFlag::Center));
         i
@@ -83,7 +78,7 @@ impl ControlInner for QtImage {
     fn on_added_to_container(&mut self, member: &mut MemberBase, control: &mut ControlBase, _parent: &controls::Container, x: i32, y: i32, pw: u16, ph: u16) {
         control.coords = Some((x, y));
         self.measure(member, control, pw, ph);
-        self.base.dirty = false;
+        self.base.dirty = true;
         self.draw(member, control);
     }
     fn on_removed_from_container(&mut self, _member: &mut MemberBase, _control: &mut ControlBase, _: &controls::Container) {}
@@ -102,11 +97,9 @@ impl ControlInner for QtImage {
     }
 
     #[cfg(feature = "markup")]
-    fn fill_from_markup(&mut self, member: &mut MemberBase, control: &mut ControlBase, mberarkup: &super::markup::Markup, registry: &mut super::markup::MarkupRegistry) {
-        use plygui_api::markup::MEMBER_TYPE_BUTTON;
-        fill_from_markup_base!(self, base, markup, registry, Image, [MEMBER_TYPE_BUTTON]);
-        fill_from_markup_label!(self, &mut base.member, markup);
-        fill_from_markup_callbacks!(self, markup, registry, [on_click => plygui_api::callbacks::Click]);
+    fn fill_from_markup(&mut self, member: &mut MemberBase, control: &mut ControlBase, markup: &super::markup::Markup, registry: &mut super::markup::MarkupRegistry) {
+        use plygui_api::markup::MEMBER_TYPE_IMAGE;
+        fill_from_markup_base!(self, base, markup, registry, Image, [MEMBER_TYPE_IMAGE]);
     }
 }
 
@@ -140,17 +133,19 @@ impl Drawable for QtImage {
         control.measured = match control.visibility {
             types::Visibility::Gone => (0, 0),
             _ => {
+                use image::GenericImageView;
+                
                 let margins = self.base.widget.contents_margins();
-                let size = if self.pixmap.is_null() { QSize::new((0, 0)) } else { self.pixmap.size() };
+                let size = self.content.dimensions();
                 let w = match control.layout.width {
                     layout::Size::MatchParent => parent_width as i32,
                     layout::Size::Exact(w) => w as i32,
-                    layout::Size::WrapContent => size.width() as i32 + margins.left() + margins.right(),
+                    layout::Size::WrapContent => size.0 as i32 + margins.left() + margins.right(),
                 };
                 let h = match control.layout.height {
                     layout::Size::MatchParent => parent_height as i32,
                     layout::Size::Exact(h) => h as i32,
-                    layout::Size::WrapContent => size.height() as i32 + margins.top() + margins.bottom(),
+                    layout::Size::WrapContent => size.1 as i32 + margins.top() + margins.bottom(),
                 };
                 (cmp::max(0, w) as u16, cmp::max(0, h) as u16)
             }

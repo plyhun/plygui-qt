@@ -115,13 +115,7 @@ fn severity_to_message_icon(severity: types::MessageSeverity) -> Icon {
     }
 }
 
-fn event_handler(_: &mut QObject, event: &mut QEvent) -> bool {
-    match event.type_() {
-        QEventType::Leave => {
-            dbg!("close");
-        }
-        _ => {}
-    }
+fn event_handler(_: &mut QObject, _: &mut QEvent) -> bool {
     false
 }
 
