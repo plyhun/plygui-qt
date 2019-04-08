@@ -5,13 +5,13 @@ pub use qt_core::flags::Flags;
 pub use qt_core::object::Object as QObject;
 pub use qt_core::qt::Orientation as QOrientation;
 pub use qt_core::size::Size as QSize;
+pub use qt_core::slots::SlotNoArgs;
 pub use qt_core::string::String as QString;
 pub use qt_core::variant::Variant as QVariant;
-pub use qt_core::slots::SlotNoArgs;
 pub use qt_core_custom_events::custom_event_filter::CustomEventFilter;
+pub use qt_widgets::menu::Menu as QMenu;
 pub use qt_widgets::size_policy::Policy as QPolicy;
 pub use qt_widgets::widget::Widget as QWidget;
-pub use qt_widgets::menu::Menu as QMenu;
 
 pub use std::ffi::CString;
 pub use std::os::raw::c_void;
@@ -282,7 +282,7 @@ pub fn append_item<T: controls::Member>(menu: &mut QMenu, label: String, action:
 pub fn append_level<T: controls::Member>(menu: &mut QMenu, label: String, items: Vec<types::MenuItem>, storage: &mut Vec<(callbacks::Action, SlotNoArgs<'static>)>, slot_spawn: fn(id: usize, selfptr: *mut T) -> SlotNoArgs<'static>, selfptr: *mut T) {
     let submenu = menu.add_menu(&QString::from_std_str(label));
     make_menu(unsafe { &mut *submenu }, items, storage, slot_spawn, selfptr);
-}    
+}
 pub fn make_menu<T: controls::Member>(menu: &mut QMenu, mut items: Vec<types::MenuItem>, storage: &mut Vec<(callbacks::Action, SlotNoArgs<'static>)>, slot_spawn: fn(id: usize, selfptr: *mut T) -> SlotNoArgs<'static>, selfptr: *mut T) {
     let mut options = Vec::new();
     let mut help = Vec::new();

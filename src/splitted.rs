@@ -406,7 +406,7 @@ impl MultiContainerInner for QtSplitted {
 
 /*#[allow(dead_code)]
 pub(crate) fn spawn() -> Box<controls::Control> {
-	Splitted::with_orientation(layout::Orientation::Vertical).into_control()
+    Splitted::with_orientation(layout::Orientation::Vertical).into_control()
 }*/
 
 fn splitter_moved(ll: &mut Splitted, position: i32) {
@@ -417,18 +417,23 @@ fn splitter_moved(ll: &mut Splitted, position: i32) {
     }
     let orientation = ll.layout_orientation();
     let (width, height) = ll.size();
-    let splitter = position as f32 / match orientation {
-        layout::Orientation::Vertical => if height > 0 {
-            height as f32
-        } else {
-            position as f32 * 2.0
-        },
-        layout::Orientation::Horizontal => if width > 0 {
-            width as f32
-        } else {
-            position as f32 * 2.0
-        },
-    };
+    let splitter = position as f32
+        / match orientation {
+            layout::Orientation::Vertical => {
+                if height > 0 {
+                    height as f32
+                } else {
+                    position as f32 * 2.0
+                }
+            }
+            layout::Orientation::Horizontal => {
+                if width > 0 {
+                    width as f32
+                } else {
+                    position as f32 * 2.0
+                }
+            }
+        };
     let (_, c, ll) = ll.as_parts_mut();
     ll.as_inner_mut().splitter = splitter;
     ll.as_inner_mut().update_children_layout(c);

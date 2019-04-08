@@ -42,7 +42,12 @@ impl CloseableInner for QtTray {
             }
         }
         self.tray.hide();
-        crate::application::Application::get().as_any_mut().downcast_mut::<crate::application::Application>().unwrap().as_inner_mut().remove_tray(unsafe { self.native_id() });
+        crate::application::Application::get()
+            .as_any_mut()
+            .downcast_mut::<crate::application::Application>()
+            .unwrap()
+            .as_inner_mut()
+            .remove_tray(unsafe { self.native_id() });
         true
     }
     fn on_close(&mut self, callback: Option<callbacks::Action>) {
@@ -53,8 +58,8 @@ impl CloseableInner for QtTray {
 impl TrayInner for QtTray {
     fn with_params(title: &str, menu: types::Menu) -> Box<Member<Self>> {
         use plygui_api::controls::HasLabel;
-        
-        let icon = unsafe{&mut *QApplication::style()}.standard_icon(StandardPixmap::DesktopIcon);
+
+        let icon = unsafe { &mut *QApplication::style() }.standard_icon(StandardPixmap::DesktopIcon);
         let tray = QSystemTrayIcon::new(());
 
         let mut tray = Box::new(Member::with_inner(
@@ -83,29 +88,31 @@ impl TrayInner for QtTray {
                 qobject.install_event_filter(filter);
             }
             tray.tray.set_icon(&icon);
-            
+
             if let Some(items) = menu {
                 tray.menu = Some((QMenu::new(()), Vec::new()));
                 if let Some((ref mut context_menu, ref mut storage)) = tray.menu {
                     fn slot_spawn(id: usize, selfptr: *mut Tray) -> SlotNoArgs<'static> {
                         SlotNoArgs::new(move || {
-                            let tray = unsafe {&mut *selfptr};
+                            let tray = unsafe { &mut *selfptr };
                             if let Some((_, ref mut menu)) = tray.as_inner_mut().menu {
                                 if let Some((a, _)) = menu.get_mut(id) {
-                                    let tray = unsafe {&mut *selfptr};
+                                    let tray = unsafe { &mut *selfptr };
                                     (a.as_mut())(tray);
                                 }
                             }
                         })
                     }
-                    
+
                     common::make_menu(context_menu, items, storage, slot_spawn, selfptr);
-                    unsafe { tray.tray.set_context_menu(context_menu.as_mut_ptr()); }
+                    unsafe {
+                        tray.tray.set_context_menu(context_menu.as_mut_ptr());
+                    }
                 } else {
                     unreachable!();
                 }
             }
-            
+
             tray.tray.show();
         }
         tray
@@ -129,8 +136,7 @@ impl HasVisibilityInner for QtTray {
         true
     }
 }
-impl MemberInner for QtTray {
-}
+impl MemberInner for QtTray {}
 
 fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
     dbg!(event.type_());
@@ -147,7 +153,12 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
                         }
                     }
                 }
-                crate::application::Application::get().as_any_mut().downcast_mut::<crate::application::Application>().unwrap().as_inner_mut().remove_tray(unsafe { w.as_inner_mut().native_id() });
+                crate::application::Application::get()
+                    .as_any_mut()
+                    .downcast_mut::<crate::application::Application>()
+                    .unwrap()
+                    .as_inner_mut()
+                    .remove_tray(unsafe { w.as_inner_mut().native_id() });
             }
         }
         _ => {}

@@ -1,8 +1,8 @@
 use crate::common::{self, *};
 
+use qt_core::timer::Timer;
 use qt_widgets::application::Application as QApplication;
 use qt_widgets::main_window::MainWindow as QMainWindow;
-use qt_core::timer::Timer;
 
 use std::borrow::Cow;
 
@@ -46,7 +46,7 @@ impl CloseableInner for QtWindow {
 impl WindowInner for QtWindow {
     fn with_params(title: &str, start_size: types::WindowStartSize, menu: types::Menu) -> Box<Member<SingleContainer<::plygui_api::development::Window<Self>>>> {
         use plygui_api::controls::HasLabel;
-        
+
         let window = QMainWindow::new();
 
         let mut window = Box::new(Member::with_inner(
@@ -110,20 +110,20 @@ impl WindowInner for QtWindow {
             });
             window.timer.signals().timeout().connect(&window.queue);
             window.timer.start(());
-            
+
             if let Some(mut items) = menu {
                 let menu_bar = unsafe { &mut *window.window.menu_bar() };
-                
+
                 fn slot_spawn(id: usize, selfptr: *mut Window) -> SlotNoArgs<'static> {
                     SlotNoArgs::new(move || {
-                        let window = unsafe {&mut *selfptr};
+                        let window = unsafe { &mut *selfptr };
                         if let Some((a, _)) = window.as_inner_mut().as_inner_mut().as_inner_mut().menu.get_mut(id) {
-                            let window = unsafe {&mut *selfptr};
+                            let window = unsafe { &mut *selfptr };
                             (a.as_mut())(window);
                         }
                     })
                 }
-                
+
                 for item in items.drain(..) {
                     match item {
                         types::MenuItem::Action(label, action, _) => {
@@ -132,17 +132,16 @@ impl WindowInner for QtWindow {
                             let qaction = unsafe { &mut *menu_bar.add_action(&QString::from_std_str(label)) };
                             qaction.signals().triggered().connect(&window.queue);
                             window.menu.push(action);
-                        },
+                        }
                         types::MenuItem::Sub(label, items, _) => {
                             let submenu = (&mut *menu_bar).add_menu(&QString::from_std_str(label));
                             common::make_menu(unsafe { &mut *submenu }, items, &mut window.menu, slot_spawn, selfptr as *mut Window);
-                        },
+                        }
                         types::MenuItem::Delimiter => {
                             menu_bar.add_separator();
                         }
                     }
                 }
-                
             }
             window.window.show();
         }
@@ -248,8 +247,7 @@ impl HasVisibilityInner for QtWindow {
         true
     }
 }
-impl MemberInner for QtWindow {
-}
+impl MemberInner for QtWindow {}
 impl Drop for QtWindow {
     fn drop(&mut self) {
         self.filter.clear();
@@ -280,7 +278,12 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
                         }
                     }
                 }
-                crate::application::Application::get().as_any_mut().downcast_mut::<crate::application::Application>().unwrap().as_inner_mut().remove_window(unsafe { w.as_inner_mut().as_inner_mut().as_inner_mut().native_id() });
+                crate::application::Application::get()
+                    .as_any_mut()
+                    .downcast_mut::<crate::application::Application>()
+                    .unwrap()
+                    .as_inner_mut()
+                    .remove_window(unsafe { w.as_inner_mut().as_inner_mut().as_inner_mut().native_id() });
             }
         }
         _ => {}

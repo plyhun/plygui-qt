@@ -2,7 +2,7 @@ use crate::common::{self, *};
 use crate::external::image;
 
 use qt_core::qt::{AlignmentFlag, AspectRatioMode};
-use qt_core::rect::{Rect as QRect};
+use qt_core::rect::Rect as QRect;
 use qt_gui::image::{Format, Image as QImage};
 use qt_gui::pixmap::Pixmap as QPixmap;
 use qt_widgets::label::Label as QLabel;
@@ -66,12 +66,8 @@ impl QtImage {
         let raw = self.content.to_rgba().into_raw();
         let img = unsafe { QImage::new_unsafe((raw.as_ptr(), w as i32, h as i32, Format::FormatRGBA8888)) };
         self.pixmap = match self.scale {
-            types::ImageScalePolicy::FitCenter => {
-                QPixmap::from_image(img.as_ref()).scaled((iw as i32, ih as i32, AspectRatioMode::KeepAspectRatio))
-            },
-            types::ImageScalePolicy::CropCenter => {
-                QPixmap::from_image(img.as_ref()).copy(&QRect::new(((w as i32 - iw as i32)/2, (h as i32 - ih as i32)/2, iw as i32, ih as i32)))
-            }
+            types::ImageScalePolicy::FitCenter => QPixmap::from_image(img.as_ref()).scaled((iw as i32, ih as i32, AspectRatioMode::KeepAspectRatio)),
+            types::ImageScalePolicy::CropCenter => QPixmap::from_image(img.as_ref()).copy(&QRect::new(((w as i32 - iw as i32) / 2, (h as i32 - ih as i32) / 2, iw as i32, ih as i32))),
         };
         self.base.widget.set_pixmap(self.pixmap.as_ref());
     }
@@ -145,11 +141,7 @@ impl Drawable for QtImage {
             types::Visibility::Gone => (0, 0),
             _ => {
                 let margins = self.base.widget.contents_margins();
-                let size = if self.pixmap.is_null() {
-                    QSize::new((0, 0))
-                } else {
-                    self.pixmap.size()
-                };
+                let size = if self.pixmap.is_null() { QSize::new((0, 0)) } else { self.pixmap.size() };
                 let w = match control.layout.width {
                     layout::Size::MatchParent => parent_width as i32,
                     layout::Size::Exact(w) => w as i32,
@@ -172,7 +164,7 @@ impl Drawable for QtImage {
 
 /*#[allow(dead_code)]
 pub(crate) fn spawn() -> Box<controls::Control> {
-	Image::with_content("").into_control()
+    Image::with_content("").into_control()
 }*/
 
 fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
@@ -189,12 +181,14 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
                     sc.call_on_size(width, height);
                 }
             }
-        },
+        }
         QEventType::Destroy => {
             if let Some(ll) = cast_qobject_to_uimember_mut::<Image>(object) {
-                unsafe { ptr::write(&mut ll.as_inner_mut().as_inner_mut().base.widget, CppBox::new(ptr::null_mut())); }
+                unsafe {
+                    ptr::write(&mut ll.as_inner_mut().as_inner_mut().base.widget, CppBox::new(ptr::null_mut()));
+                }
             }
-        },
+        }
         _ => {}
     }
     false

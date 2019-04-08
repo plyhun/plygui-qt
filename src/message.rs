@@ -43,26 +43,26 @@ impl MessageInner for QtMessage {
         unsafe {
             let message = message.as_inner_mut();
             let qmessage = message.message.as_mut_ptr();
-            
+
             match content {
                 types::TextContent::Plain(ref text) => {
                     message.message.set_text(&QString::from_std_str(text.as_str()));
-                },
+                }
                 types::TextContent::LabelDescription(label, description) => {
                     message.message.set_text(&QString::from_std_str(label.as_str()));
                     message.message.set_informative_text(&QString::from_std_str(description.as_str()));
                 }
             }
-            
+
             message.message.set_icon(severity_to_message_icon(severity));
-            
+
             if let Some(parent) = parent {
                 message.message.set_parent(common::cast_member_to_qwidget(parent).window());
             }
             message.actions.iter().for_each(|a| {
                 (&mut *qmessage).add_button((&QString::from_std_str(a.0.as_str()), ButtonRole::ActionRole));
             });
-            
+
             let filter: *mut QObject = message.filter.static_cast_mut() as *mut QObject;
             let qobject: &mut QObject = message.message.as_mut().static_cast_mut();
             qobject.install_event_filter(filter);
@@ -74,13 +74,14 @@ impl MessageInner for QtMessage {
     }
     fn start(mut self) -> Result<String, ()> {
         let ptr = self.message.static_cast_mut() as *mut QObject;
-        self.actions.get_mut(self.message.exec() as usize).map(|a| {
-            let message2 = {
-                unsafe { common::cast_qobject_to_uimember_mut::<Message>(&mut *ptr).unwrap() }
-            };
-            (a.1.as_mut())(message2);
-            a.0.clone()
-        }).ok_or(())
+        self.actions
+            .get_mut(self.message.exec() as usize)
+            .map(|a| {
+                let message2 = { unsafe { common::cast_qobject_to_uimember_mut::<Message>(&mut *ptr).unwrap() } };
+                (a.1.as_mut())(message2);
+                a.0.clone()
+            })
+            .ok_or(())
     }
 }
 impl HasNativeIdInner for QtMessage {

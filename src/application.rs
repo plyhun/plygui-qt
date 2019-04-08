@@ -1,12 +1,12 @@
 use crate::common::{self, *};
-use crate::window::Window;
 use crate::tray::Tray;
+use crate::window::Window;
 
-use qt_widgets::application::Application as QApplication;
-use qt_gui::gui_application::GuiApplication as QGuiApplication;
 use qt_core::core_application::{CoreApplication as QCoreApplication, CoreApplicationArgs as QCoreApplicationArgs};
 use qt_core::cpp_utils::CppBox;
 use qt_core::string::String;
+use qt_gui::gui_application::GuiApplication as QGuiApplication;
+use qt_widgets::application::Application as QApplication;
 
 use plygui_api::development;
 use plygui_api::{controls, ids, types};
@@ -40,7 +40,15 @@ impl ApplicationInner for QtApplication {
         let inner = unsafe { QApplication::new(args.get()) };
         QGuiApplication::set_quit_on_last_window_closed(false);
         //QCoreApplication::set_application_name(&String::from_std_str(name));
-        Box::new(development::Application::with_inner(QtApplication { _args: args, inner: inner, windows: Vec::with_capacity(1), trays: vec![] }, ()))
+        Box::new(development::Application::with_inner(
+            QtApplication {
+                _args: args,
+                inner: inner,
+                windows: Vec::with_capacity(1),
+                trays: vec![],
+            },
+            (),
+        ))
     }
     fn new_window(&mut self, title: &str, size: types::WindowStartSize, menu: types::Menu) -> Box<dyn controls::Window> {
         use plygui_api::controls::HasNativeId;
@@ -77,7 +85,7 @@ impl ApplicationInner for QtApplication {
     fn find_member_by_id_mut(&mut self, id: ids::Id) -> Option<&mut dyn controls::Member> {
         use plygui_api::controls::{Container, Member};
         use std::ops::DerefMut;
-        
+
         for window in self.windows.as_mut_slice() {
             let window = common::cast_qobject_to_uimember_mut::<Window>(window.deref_mut()).unwrap();
             if window.id() == id {
@@ -132,7 +140,7 @@ impl ApplicationInner for QtApplication {
 }
 impl HasNativeIdInner for QtApplication {
     type Id = common::QtId;
-    
+
     unsafe fn native_id(&self) -> Self::Id {
         QtId::from(self.inner.static_cast() as *const QObject as *mut QObject)
     }
