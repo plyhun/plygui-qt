@@ -45,6 +45,9 @@ impl ClickableInner for QtButton {
             self.h_left_clicked.1.clear();
         }
     }
+    fn click(&mut self) {
+        self.base.widget.click();
+    }
 }
 
 impl ButtonInner for QtButton {
