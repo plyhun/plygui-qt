@@ -14,15 +14,15 @@ pub struct QtMessage {
 }
 
 impl HasLabelInner for QtMessage {
-    fn label<'a>(&'a self) -> Cow<'a, str> {
+    fn label(&self, _: &MemberBase) -> Cow<str> {
         let name = (&*self.message.as_ref()).text().to_utf8();
         unsafe {
             let bytes = std::slice::from_raw_parts(name.const_data() as *const u8, name.count(()) as usize);
             Cow::Owned(std::str::from_utf8_unchecked(bytes).to_owned())
         }
     }
-    fn set_label(&mut self, _: &mut MemberBase, label: &str) {
-        self.message.set_text(&QString::from_std_str(label));
+    fn set_label(&mut self, _: &mut MemberBase, label: Cow<str>) {
+        self.message.set_text(&QString::from_std_str(&label));
     }
 }
 

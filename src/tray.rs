@@ -13,19 +13,19 @@ pub struct QtTray {
     tray: CppBox<QSystemTrayIcon>,
     filter: CppBox<CustomEventFilter>,
     menu: Option<(CppBox<QMenu>, Vec<(callbacks::Action, SlotNoArgs<'static>)>)>,
-    on_close: Option<callbacks::Action>,
+    on_close: Option<callbacks::OnClose>,
     skip_callbacks: bool,
 }
 
 impl HasLabelInner for QtTray {
-    fn label<'a>(&'a self) -> Cow<'a, str> {
+    fn label(&self, _: &MemberBase) -> Cow<str> {
         let name = (&*self.tray.as_ref()).tool_tip().to_utf8();
         unsafe {
             let bytes = std::slice::from_raw_parts(name.const_data() as *const u8, name.count(()) as usize);
             Cow::Owned(std::str::from_utf8_unchecked(bytes).to_owned())
         }
     }
-    fn set_label(&mut self, _: &mut MemberBase, label: &str) {
+    fn set_label(&mut self, _: &mut MemberBase, label: Cow<str>) {
         self.tray.set_tool_tip(&QString::from_std_str(label));
     }
 }
@@ -43,6 +43,7 @@ impl CloseableInner for QtTray {
         }
         self.tray.hide();
         crate::application::Application::get()
+            .unwrap()
             .as_any_mut()
             .downcast_mut::<crate::application::Application>()
             .unwrap()
@@ -50,7 +51,7 @@ impl CloseableInner for QtTray {
             .remove_tray(unsafe { self.native_id() });
         true
     }
-    fn on_close(&mut self, callback: Option<callbacks::Action>) {
+    fn on_close(&mut self, callback: Option<callbacks::OnClose>) {
         self.on_close = callback;
     }
 }
@@ -76,7 +77,7 @@ impl TrayInner for QtTray {
             let ptr = tray.as_ref() as *const _ as u64;
             (tray.as_inner_mut().tray.as_mut().static_cast_mut() as &mut QObject).set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::new0(ptr));
         }
-        tray.set_label(title);
+        tray.set_label(title.into());
         {
             let selfptr = tray.as_mut() as *mut Tray;
             let tray = tray.as_inner_mut();
@@ -154,6 +155,7 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
                     }
                 }
                 crate::application::Application::get()
+                    .unwrap()
                     .as_any_mut()
                     .downcast_mut::<crate::application::Application>()
                     .unwrap()

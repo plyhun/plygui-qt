@@ -214,7 +214,7 @@ pub fn cast_member_to_qwidget_mut(member: &mut dyn controls::Member) -> &mut QWi
 pub fn cast_member_to_qwidget(member: &dyn controls::Member) -> &QWidget {
     unsafe { &*(member.native_id() as *const QWidget) }
 }
-fn cast_qobject_mut<'a, T>(object: &'a mut QObject) -> Option<&'a mut T>
+fn cast_qobject_mut<'a, T>(object: &mut QObject) -> Option<&'a mut T>
 where
     T: Sized,
 {
@@ -227,7 +227,7 @@ where
         }
     }
 }
-fn cast_qobject<'a, T>(object: &'a QObject) -> Option<&'a T>
+fn cast_qobject<'a, T>(object: &QObject) -> Option<&'a T>
 where
     T: Sized,
 {
@@ -240,22 +240,22 @@ where
         }
     }
 }
-pub fn cast_qobject_to_uimember_mut<'a, T>(object: &'a mut QObject) -> Option<&'a mut T>
+pub fn cast_qobject_to_uimember_mut<'a, T>(object: &mut QObject) -> Option<&'a mut T>
 where
     T: controls::Member + Sized,
 {
     cast_qobject_mut(object)
 }
-pub fn cast_qobject_to_uimember<'a, T>(object: &'a QObject) -> Option<&'a T>
+pub fn cast_qobject_to_uimember<'a, T>(object: &QObject) -> Option<&'a T>
 where
     T: controls::Member + Sized,
 {
     cast_qobject(object)
 }
-pub fn cast_qobject_to_base_mut<'a>(object: &'a mut QObject) -> Option<&'a mut MemberBase> {
+pub fn cast_qobject_to_base_mut<'a>(object: &mut QObject) -> Option<&'a mut MemberBase> {
     cast_qobject_mut(object)
 }
-pub fn cast_qobject_to_base<'a>(object: &'a QObject) -> Option<&'a MemberBase> {
+pub fn cast_qobject_to_base<'a>(object: &QObject) -> Option<&'a MemberBase> {
     cast_qobject(object)
 }
 pub fn orientation_to_qorientation(o: layout::Orientation) -> QOrientation {

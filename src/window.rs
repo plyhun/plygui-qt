@@ -1,6 +1,5 @@
 use crate::common::{self, *};
 
-use qt_core::timer::Timer;
 use qt_widgets::application::Application as QApplication;
 use qt_widgets::main_window::MainWindow as QMainWindow;
 
@@ -13,23 +12,21 @@ pub struct QtWindow {
     window: CppBox<QMainWindow>,
     child: Option<Box<dyn controls::Control>>,
     filter: CppBox<CustomEventFilter>,
-    timer: CppBox<Timer>,
-    queue: SlotNoArgs<'static>,
     menu: Vec<(callbacks::Action, SlotNoArgs<'static>)>,
-    on_close: Option<callbacks::Action>,
+    on_close: Option<callbacks::OnClose>,
     skip_callbacks: bool,
 }
 
 impl HasLabelInner for QtWindow {
-    fn label<'a>(&'a self) -> Cow<'a, str> {
+    fn label<'a>(&'a self, _: &MemberBase) -> Cow<'a, str> {
         let name = (&*self.window.as_ref()).window_title().to_utf8();
         unsafe {
             let bytes = std::slice::from_raw_parts(name.const_data() as *const u8, name.count(()) as usize);
             Cow::Owned(std::str::from_utf8_unchecked(bytes).to_owned())
         }
     }
-    fn set_label(&mut self, _: &mut MemberBase, label: &str) {
-        self.window.set_window_title(&QString::from_std_str(label));
+    fn set_label(&mut self, _: &mut MemberBase, label: Cow<str>) {
+        self.window.set_window_title(&QString::from_std_str(&label));
     }
 }
 
@@ -38,7 +35,7 @@ impl CloseableInner for QtWindow {
         self.skip_callbacks = skip_callbacks;
         self.window.close()
     }
-    fn on_close(&mut self, callback: Option<callbacks::Action>) {
+    fn on_close(&mut self, callback: Option<callbacks::OnClose>) {
         self.on_close = callback;
     }
 }
@@ -56,8 +53,6 @@ impl WindowInner for QtWindow {
                         window: window,
                         child: None,
                         filter: CustomEventFilter::new(event_handler),
-                        timer: Timer::new(),
-                        queue: SlotNoArgs::new(move || {}),
                         menu: if menu.is_some() { Vec::new() } else { Vec::with_capacity(0) },
                         on_close: None,
                         skip_callbacks: false,
@@ -72,7 +67,7 @@ impl WindowInner for QtWindow {
             let ptr = window.as_ref() as *const _ as u64;
             (window.as_inner_mut().as_inner_mut().as_inner_mut().window.as_mut().static_cast_mut() as &mut QObject).set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::new0(ptr));
         }
-        window.set_label(title);
+        window.set_label(title.into());
         {
             let selfptr = window.as_ref() as *const _ as u64;
             let window = window.as_inner_mut().as_inner_mut().as_inner_mut();
@@ -90,27 +85,6 @@ impl WindowInner for QtWindow {
                 let qobject: &mut QObject = window.window.as_mut().static_cast_mut();
                 qobject.install_event_filter(filter);
             }
-            window.queue = SlotNoArgs::new(move || {
-                let mut frame_callbacks = 0;
-                while frame_callbacks < defaults::MAX_FRAME_CALLBACKS {
-                    let w = unsafe { (&mut *(selfptr as *mut Window)).as_inner_mut().as_inner_mut().base_mut() };
-                    match w.queue().try_recv() {
-                        Ok(mut cmd) => {
-                            if (cmd.as_mut())(unsafe { &mut *(selfptr as *mut Window) }) {
-                                let _ = w.sender().send(cmd);
-                            }
-                            frame_callbacks += 1;
-                        }
-                        Err(e) => match e {
-                            mpsc::TryRecvError::Empty => break,
-                            mpsc::TryRecvError::Disconnected => unreachable!(),
-                        },
-                    }
-                }
-            });
-            window.timer.signals().timeout().connect(&window.queue);
-            window.timer.start(());
-
             if let Some(mut items) = menu {
                 let menu_bar = unsafe { &mut *window.window.menu_bar() };
 
@@ -123,6 +97,12 @@ impl WindowInner for QtWindow {
                         }
                     })
                 }
+                let mut app = crate::application::Application::get().unwrap();
+                let app = app
+                    .as_any_mut()
+                    .downcast_mut::<crate::application::Application>()
+                    .unwrap()
+                    .as_inner_mut();
 
                 for item in items.drain(..) {
                     match item {
@@ -130,7 +110,7 @@ impl WindowInner for QtWindow {
                             let id = window.menu.len();
                             let action = (action, slot_spawn(id, selfptr as *mut Window));
                             let qaction = unsafe { &mut *menu_bar.add_action(&QString::from_std_str(label)) };
-                            qaction.signals().triggered().connect(&window.queue);
+                            qaction.signals().triggered().connect(&app.queue);
                             window.menu.push(action);
                         }
                         types::MenuItem::Sub(label, items, _) => {
@@ -146,14 +126,6 @@ impl WindowInner for QtWindow {
             window.window.show();
         }
         window
-    }
-    fn on_frame(&mut self, cb: callbacks::OnFrame) {
-        let qobject: &mut QObject = self.window.as_mut().static_cast_mut();
-        let _ = cast_qobject_to_uimember_mut::<Window>(qobject).unwrap().as_inner_mut().as_inner_mut().base_mut().sender().send(cb);
-    }
-    fn on_frame_async_feeder(&mut self) -> callbacks::AsyncFeeder<callbacks::OnFrame> {
-        let qobject: &mut QObject = self.window.as_mut().static_cast_mut();
-        cast_qobject_to_uimember_mut::<Window>(qobject).unwrap().as_inner_mut().as_inner_mut().base_mut().sender().clone().into()
     }
     fn size(&self) -> (u16, u16) {
         let size = self.window.size();
@@ -207,18 +179,18 @@ impl SingleContainerInner for QtWindow {
 }
 
 impl ContainerInner for QtWindow {
-    fn find_control_by_id_mut(&mut self, id_: ids::Id) -> Option<&mut dyn controls::Control> {
+    fn find_control_mut(&mut self, arg: types::FindBy) -> Option<&mut dyn controls::Control> {
         if let Some(child) = self.child.as_mut() {
             if let Some(c) = child.is_container_mut() {
-                return c.find_control_by_id_mut(id_);
+                return c.find_control_mut(arg);
             }
         }
         None
     }
-    fn find_control_by_id(&self, id_: ids::Id) -> Option<&dyn controls::Control> {
+    fn find_control(&self, arg: types::FindBy) -> Option<&dyn controls::Control> {
         if let Some(child) = self.child.as_ref() {
             if let Some(c) = child.is_container() {
-                return c.find_control_by_id(id_);
+                return c.find_control(arg);
             }
         }
         None
@@ -279,6 +251,7 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
                     }
                 }
                 crate::application::Application::get()
+                    .unwrap()
                     .as_any_mut()
                     .downcast_mut::<crate::application::Application>()
                     .unwrap()

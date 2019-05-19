@@ -14,20 +14,20 @@ pub type Button = Member<Control<QtButton>>;
 #[repr(C)]
 pub struct QtButton {
     base: common::QtControlBase<Button, QPushButton>,
-
+    skip_callbacks: bool,
     h_left_clicked: (bool, SlotNoArgs<'static>),
 }
 
 impl HasLabelInner for QtButton {
-    fn label<'a>(&'a self) -> Cow<'a, str> {
+    fn label(&self, _: &MemberBase) -> Cow<str> {
         let name = self.base.widget.as_ref().text().to_utf8();
         unsafe {
             let bytes = std::slice::from_raw_parts(name.const_data() as *const u8, name.count(()) as usize);
             Cow::Owned(std::str::from_utf8_unchecked(bytes).to_owned())
         }
     }
-    fn set_label(&mut self, _: &mut MemberBase, label: &str) {
-        self.base.widget.as_mut().set_text(&QString::from_std_str(label));
+    fn set_label(&mut self, _: &mut MemberBase, label: Cow<str>) {
+        self.base.widget.as_mut().set_text(&QString::from_std_str(&label));
     }
 }
 
@@ -39,14 +39,18 @@ impl ClickableInner for QtButton {
             let ptr = self.base.widget.as_mut().static_cast_mut() as *mut QObject;
             self.h_left_clicked.1.set(move || unsafe {
                 let button = cast_qobject_to_uimember_mut::<Button>(&mut *ptr).unwrap();
-                (cb.as_mut())(button);
+                if !button.as_inner().as_inner().skip_callbacks {
+                    (cb.as_mut())(button);
+                }
             });
         } else {
             self.h_left_clicked.1.clear();
         }
     }
-    fn click(&mut self) {
+    fn click(&mut self, skip_callbacks: bool) -> bool {
+        self.skip_callbacks = skip_callbacks;
         self.base.widget.click();
+        true
     }
 }
 
@@ -56,6 +60,7 @@ impl ButtonInner for QtButton {
             Control::with_inner(
                 QtButton {
                     base: common::QtControlBase::with_params(QPushButton::new(&QString::from_std_str(label)), event_handler),
+                    skip_callbacks: false,
                     h_left_clicked: (false, SlotNoArgs::new(move || {})),
                 },
                 (),
