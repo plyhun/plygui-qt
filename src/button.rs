@@ -47,10 +47,9 @@ impl ClickableInner for QtButton {
             self.h_left_clicked.1.clear();
         }
     }
-    fn click(&mut self, skip_callbacks: bool) -> bool {
+    fn click(&mut self, skip_callbacks: bool) {
         self.skip_callbacks = skip_callbacks;
         self.base.widget.click();
-        true
     }
 }
 
