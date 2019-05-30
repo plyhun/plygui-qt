@@ -1,10 +1,7 @@
 use crate::common::{self, *};
-use crate::external::image;
 
 use qt_core::qt::{AlignmentFlag, AspectRatioMode};
 use qt_core::rect::Rect as QRect;
-use qt_gui::image::{Format, Image as QImage};
-use qt_gui::pixmap::Pixmap as QPixmap;
 use qt_widgets::label::Label as QLabel;
 
 pub type Image = Member<Control<QtImage>>;
@@ -55,11 +52,10 @@ impl ImageInner for QtImage {
 impl QtImage {
     fn update_image(&mut self, control: &mut ControlBase) {
         use image::GenericImageView;
-
-        let (iw, ih) = control.measured;
+    
         let (w, h) = self.content.dimensions();
-        let raw = self.content.to_rgba().into_raw();
-        let img = unsafe { QImage::new_unsafe((raw.as_ptr(), w as i32, h as i32, Format::FormatRGBA8888)) };
+        let (iw, ih) = control.measured;
+        let img = common::image_to_qimage(&self.content);
         self.pixmap = match self.scale {
             types::ImageScalePolicy::FitCenter => QPixmap::from_image(img.as_ref()).scaled((iw as i32, ih as i32, AspectRatioMode::KeepAspectRatio)),
             types::ImageScalePolicy::CropCenter => QPixmap::from_image(img.as_ref()).copy(&QRect::new(((w as i32 - iw as i32) / 2, (h as i32 - ih as i32) / 2, iw as i32, ih as i32))),

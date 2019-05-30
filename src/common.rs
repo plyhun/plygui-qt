@@ -9,6 +9,8 @@ pub use qt_core::slots::SlotNoArgs;
 pub use qt_core::string::String as QString;
 pub use qt_core::variant::Variant as QVariant;
 pub use qt_core_custom_events::custom_event_filter::CustomEventFilter;
+pub use qt_gui::image::{Format, Image as QImage};
+pub use qt_gui::pixmap::Pixmap as QPixmap;
 pub use qt_widgets::menu::Menu as QMenu;
 pub use qt_widgets::size_policy::Policy as QPolicy;
 pub use qt_widgets::widget::Widget as QWidget;
@@ -19,6 +21,7 @@ pub use std::{cmp, marker, mem, ops, ptr, sync::mpsc};
 
 pub use plygui_api::development::*;
 pub use plygui_api::{callbacks, controls, defaults, ids, layout, types, utils};
+pub use plygui_api::external::image;
 
 lazy_static! {
     pub static ref PROPERTY: CString = CString::new("plygui").unwrap();
@@ -269,6 +272,13 @@ pub fn qorientation_to_orientation(o: QOrientation) -> layout::Orientation {
         QOrientation::Horizontal => layout::Orientation::Horizontal,
         QOrientation::Vertical => layout::Orientation::Vertical,
     }
+}
+pub fn image_to_qimage(src: &image::DynamicImage) -> CppBox<QImage> {
+    use image::GenericImageView;
+    
+    let (w, h) = src.dimensions();
+    let raw = src.to_rgba().into_raw();
+    unsafe { QImage::new_unsafe((raw.as_ptr(), w as i32, h as i32, Format::FormatRGBA8888)) }
 }
 pub fn append_item<T: controls::Member>(menu: &mut QMenu, label: String, action: callbacks::Action, storage: &mut Vec<(callbacks::Action, SlotNoArgs<'static>)>, slot_spawn: fn(id: usize, selfptr: *mut T) -> SlotNoArgs<'static>, selfptr: *mut T) {
     let id = storage.len();

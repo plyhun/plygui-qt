@@ -3,6 +3,7 @@ use crate::common::{self, *};
 use qt_widgets::application::Application as QApplication;
 use qt_widgets::style::StandardPixmap;
 use qt_widgets::system_tray_icon::SystemTrayIcon as QSystemTrayIcon;
+use qt_gui::icon::Icon as QIcon;
 
 use std::borrow::Cow;
 
@@ -55,7 +56,19 @@ impl CloseableInner for QtTray {
         self.on_close = callback;
     }
 }
-
+impl HasImageInner for QtTray {
+	fn image(&self, _base: &MemberBase) -> Cow<image::DynamicImage> {
+        unimplemented!()
+    }
+    fn set_image(&mut self, _base: &mut MemberBase, i: Cow<image::DynamicImage>) {
+    	let i = {
+    		let status_size = 22; //self.tray.size() as u32;
+    		i.resize(status_size, status_size, image::FilterType::Lanczos3)
+    	};
+    	let i = common::image_to_qimage(&i);
+    	self.tray.set_icon(&QIcon::new(QPixmap::from_image(i.as_ref()).as_ref()));
+    }
+}
 impl TrayInner for QtTray {
     fn with_params(title: &str, menu: types::Menu) -> Box<Member<Self>> {
         use plygui_api::controls::HasLabel;
