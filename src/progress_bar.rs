@@ -1,87 +1,83 @@
 use crate::common::{self, *};
 
-use qt_core::connection::Signal;
 use qt_core::rect::Rect as QRect;
-use qt_core::slots::SlotNoArgs;
 use qt_gui::font_metrics::FontMetrics as QFontMetrics;
-use qt_widgets::push_button::PushButton as QPushButton;
+use qt_widgets::progress_bar::ProgressBar as QProgressBar;
 
-use std::borrow::Cow;
-
-pub type Button = Member<Control<QtButton>>;
+pub type ProgressBar = Member<Control<QtProgressBar>>;
 
 #[repr(C)]
-pub struct QtButton {
-    base: common::QtControlBase<Button, QPushButton>,
-    skip_callbacks: bool,
-    h_left_clicked: (bool, SlotNoArgs<'static>),
+pub struct QtProgressBar {
+    base: common::QtControlBase<ProgressBar, QProgressBar>,
 }
 
-impl HasLabelInner for QtButton {
-    fn label(&self, _: &MemberBase) -> Cow<str> {
-        let name = self.base.widget.as_ref().text().to_utf8();
-        unsafe {
-            let bytes = std::slice::from_raw_parts(name.const_data() as *const u8, name.count(()) as usize);
-            Cow::Owned(std::str::from_utf8_unchecked(bytes).to_owned())
-        }
-    }
-    fn set_label(&mut self, _: &mut MemberBase, label: Cow<str>) {
-        self.base.widget.as_mut().set_text(&QString::from_std_str(&label));
-    }
-}
-
-impl ClickableInner for QtButton {
-    fn on_click(&mut self, cb: Option<callbacks::OnClick>) {
-        self.h_left_clicked.0 = cb.is_some();
-        if cb.is_some() {
-            let mut cb = cb.unwrap();
-            let ptr = self.base.widget.as_mut().static_cast_mut() as *mut QObject;
-            self.h_left_clicked.1.set(move || unsafe {
-                let button = cast_qobject_to_uimember_mut::<Button>(&mut *ptr).unwrap();
-                if !button.as_inner().as_inner().skip_callbacks {
-                    (cb.as_mut())(button);
-                }
-            });
-        } else {
-            self.h_left_clicked.1.clear();
-        }
-    }
-    fn click(&mut self, skip_callbacks: bool) {
-        self.skip_callbacks = skip_callbacks;
-        self.base.widget.click();
-    }
-}
-
-impl ButtonInner for QtButton {
-    fn with_label(label: &str) -> Box<Button> {
-        let mut btn = Box::new(Member::with_inner(
+impl ProgressBarInner for QtProgressBar {
+    fn with_progress(arg: types::Progress) -> Box<ProgressBar> {
+        use crate::plygui_api::controls::HasProgress;
+        
+        let mut pb = Box::new(Member::with_inner(
             Control::with_inner(
-                QtButton {
-                    base: common::QtControlBase::with_params(QPushButton::new(&QString::from_std_str(label)), event_handler),
-                    skip_callbacks: false,
-                    h_left_clicked: (false, SlotNoArgs::new(move || {})),
+                QtProgressBar {
+                    base: common::QtControlBase::with_params(QProgressBar::new(), event_handler),
                 },
                 (),
             ),
             MemberFunctions::new(_as_any, _as_any_mut, _as_member, _as_member_mut),
         ));
+        pb.as_inner_mut().as_inner_mut().base.widget.as_mut().set_minimum(0);
+        pb.as_inner_mut().as_inner_mut().base.widget.as_mut().set_text_visible(false);
         unsafe {
-            let ptr = btn.as_ref() as *const _ as u64;
-            btn.as_inner().as_inner().base.widget.signals().released().connect(&btn.as_inner().as_inner().h_left_clicked.1);
-            let qo: &mut QObject = btn.as_inner_mut().as_inner_mut().base.widget.static_cast_mut();
+            let ptr = pb.as_ref() as *const _ as u64;
+            let qo: &mut QObject = pb.as_inner_mut().as_inner_mut().base.widget.static_cast_mut();
             qo.set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::new0(ptr));
         }
-        btn
+        pb.set_progress(arg);
+        pb
     }
 }
 
-impl HasLayoutInner for QtButton {
+impl HasProgressInner for QtProgressBar {
+    fn progress(&self, _base: &MemberBase) -> types::Progress {
+	    let progress_bar = self.base.widget.as_ref();
+        if progress_bar.inverted_appearance() {
+            return types::Progress::None;
+        }
+        if progress_bar.maximum() < 1 {
+            return types::Progress::Undefined;
+        }
+        types::Progress::Value(
+            progress_bar.value() as u32,
+            progress_bar.maximum() as u32
+        )
+    }
+	fn set_progress(&mut self, _base: &mut MemberBase, arg: types::Progress) {
+	    let progress_bar = self.base.widget.as_mut();
+        match arg {
+        	types::Progress::Value(current, total) => {
+        	    let total = if total > 0 { 0 } else { 1 };
+        	    progress_bar.set_inverted_appearance(false);
+        	    progress_bar.set_range(0, total);
+        		progress_bar.set_value(current as i32);
+        	},
+        	types::Progress::Undefined => {
+        	    progress_bar.set_inverted_appearance(false);
+        	    progress_bar.set_range(0, 0);
+        	},
+        	types::Progress::None => {
+        	    progress_bar.set_inverted_appearance(true);
+        	    progress_bar.set_range(0, 0);
+        	}
+        }
+	}
+}
+
+impl HasLayoutInner for QtProgressBar {
     fn on_layout_changed(&mut self, _base: &mut MemberBase) {
         self.base.invalidate();
     }
 }
 
-impl ControlInner for QtButton {
+impl ControlInner for QtProgressBar {
     fn parent(&self) -> Option<&dyn controls::Member> {
         self.base.parent()
     }
@@ -104,35 +100,35 @@ impl ControlInner for QtButton {
 
     #[cfg(feature = "markup")]
     fn fill_from_markup(&mut self, markup: &plygui_api::markup::Markup, registry: &mut plygui_api::markup::MarkupRegistry) {
-        use plygui_api::markup::MEMBER_TYPE_BUTTON;
+        use plygui_api::markup::MEMBER_TYPE_PROGRESS_BAR;
 
-        fill_from_markup_base!(self, markup, registry, Button, [MEMBER_ID_BUTTON, MEMBER_TYPE_BUTTON]);
+        fill_from_markup_base!(self, markup, registry, ProgressBar, [MEMBER_ID_PROGRESS_BAR, MEMBER_TYPE_PROGRESS_BAR]);
         fill_from_markup_label!(self, markup);
-        fill_from_markup_callbacks!(self, markup, registry, ["on_click" => FnMut(&mut controls::Button)]);
+        fill_from_markup_callbacks!(self, markup, registry, ["on_click" => FnMut(&mut controls::ProgressBar)]);
     }
 }
-impl HasNativeIdInner for QtButton {
+impl HasNativeIdInner for QtProgressBar {
     type Id = common::QtId;
 
     unsafe fn native_id(&self) -> Self::Id {
         QtId::from(self.base.widget.static_cast() as *const QObject as *mut QObject)
     }
 }
-impl HasVisibilityInner for QtButton {
+impl HasVisibilityInner for QtProgressBar {
     fn on_visibility_set(&mut self, _: &mut MemberBase, value: types::Visibility) -> bool {
         self.base.set_visibility(value);
         self.base.invalidate()
     }
 }
-impl HasSizeInner for QtButton {
+impl HasSizeInner for QtProgressBar {
     fn on_size_set(&mut self, _: &mut MemberBase, (width, height): (u16, u16)) -> bool {
         self.base.widget.set_fixed_size((width as i32, height as i32));
         true
     }
 }
-impl MemberInner for QtButton {}
+impl MemberInner for QtProgressBar {}
 
-impl Drawable for QtButton {
+impl Drawable for QtProgressBar {
     fn draw(&mut self, member: &mut MemberBase, control: &mut ControlBase) {
         self.base.draw(member, control);
     }
@@ -179,13 +175,13 @@ impl Drawable for QtButton {
 
 #[allow(dead_code)]
 pub(crate) fn spawn() -> Box<dyn controls::Control> {
-    Button::with_label("").into_control()
+    ProgressBar::with_progress(types::Progress::None).into_control()
 }
 
 fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
     match event.type_() {
         QEventType::Resize => {
-            if let Some(ll) = cast_qobject_to_uimember_mut::<Button>(object) {
+            if let Some(ll) = cast_qobject_to_uimember_mut::<ProgressBar>(object) {
                 use plygui_api::controls::HasSize;
 
                 if ll.as_inner().as_inner().base.dirty {
@@ -196,7 +192,7 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
             }
         }
         QEventType::Destroy => {
-            if let Some(ll) = cast_qobject_to_uimember_mut::<Button>(object) {
+            if let Some(ll) = cast_qobject_to_uimember_mut::<ProgressBar>(object) {
                 unsafe {
                     ptr::write(&mut ll.as_inner_mut().as_inner_mut().base.widget, CppBox::new(ptr::null_mut()));
                 }
@@ -206,4 +202,4 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
     }
     false
 }
-default_impls_as!(Button);
+default_impls_as!(ProgressBar);
