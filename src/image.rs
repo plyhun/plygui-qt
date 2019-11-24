@@ -16,7 +16,7 @@ pub struct QtImage {
 }
 
 impl ImageInner for QtImage {
-    fn with_content(content: image::DynamicImage) -> Box<controls::Image> {
+    fn with_content(content: image::DynamicImage) -> Box<dyn controls::Image> {
         let mut i = Box::new(Member::with_inner(
             Control::with_inner(
                 QtImage {
@@ -38,7 +38,7 @@ impl ImageInner for QtImage {
         i.as_inner_mut().as_inner_mut().base.widget.set_alignment(Flags::from_enum(AlignmentFlag::Center));
         i
     }
-    fn set_scale(&mut self, _: &mut MemberBase, _: &mut ControlBase, policy: types::ImageScalePolicy) {
+    fn set_scale(&mut self, _: &mut MemberBase, policy: types::ImageScalePolicy) {
         if self.scale != policy {
             self.scale = policy;
             self.base.invalidate();
@@ -56,9 +56,10 @@ impl QtImage {
         let (w, h) = self.content.dimensions();
         let (iw, ih) = control.measured;
         let img = common::image_to_qimage(&self.content);
+        let pixmap = QPixmap::from_image(img.as_ref());
         self.pixmap = match self.scale {
-            types::ImageScalePolicy::FitCenter => QPixmap::from_image(img.as_ref()).scaled((iw as i32, ih as i32, AspectRatioMode::KeepAspectRatio)),
-            types::ImageScalePolicy::CropCenter => QPixmap::from_image(img.as_ref()).copy(&QRect::new(((w as i32 - iw as i32) / 2, (h as i32 - ih as i32) / 2, iw as i32, ih as i32))),
+            types::ImageScalePolicy::FitCenter => pixmap.scaled((iw as i32, ih as i32, AspectRatioMode::KeepAspectRatio)),
+            types::ImageScalePolicy::CropCenter => pixmap.copy(&QRect::new(((w as i32 - iw as i32) / 2, (h as i32 - ih as i32) / 2, iw as i32, ih as i32))),
         };
         self.base.widget.set_pixmap(self.pixmap.as_ref());
     }
@@ -71,24 +72,24 @@ impl HasLayoutInner for QtImage {
 }
 
 impl ControlInner for QtImage {
-    fn on_added_to_container(&mut self, member: &mut MemberBase, control: &mut ControlBase, _parent: &controls::Container, x: i32, y: i32, pw: u16, ph: u16) {
+    fn on_added_to_container(&mut self, member: &mut MemberBase, control: &mut ControlBase, _parent: &dyn controls::Container, x: i32, y: i32, pw: u16, ph: u16) {
         control.coords = Some((x, y));
         self.measure(member, control, pw, ph);
         self.base.dirty = true;
         self.draw(member, control);
     }
-    fn on_removed_from_container(&mut self, _member: &mut MemberBase, _control: &mut ControlBase, _: &controls::Container) {}
+    fn on_removed_from_container(&mut self, _member: &mut MemberBase, _control: &mut ControlBase, _: &dyn controls::Container) {}
 
-    fn parent(&self) -> Option<&controls::Member> {
+    fn parent(&self) -> Option<&dyn controls::Member> {
         self.base.parent().map(|m| m.as_member())
     }
-    fn parent_mut(&mut self) -> Option<&mut controls::Member> {
+    fn parent_mut(&mut self) -> Option<&mut dyn controls::Member> {
         self.base.parent_mut().map(|m| m.as_member_mut())
     }
-    fn root(&self) -> Option<&controls::Member> {
+    fn root(&self) -> Option<&dyn controls::Member> {
         self.base.root().map(|m| m.as_member())
     }
-    fn root_mut(&mut self) -> Option<&mut controls::Member> {
+    fn root_mut(&mut self) -> Option<&mut dyn controls::Member> {
         self.base.root_mut().map(|m| m.as_member_mut())
     }
 

@@ -54,10 +54,10 @@ impl SplittedInner for QtSplitted {
         //ll.as_inner_mut().as_inner_mut().as_inner_mut().update_children_orientation();
         ll
     }
-    fn set_splitter(&mut self, _member: &mut MemberBase, control: &mut ControlBase, pos: f32) {
+    fn set_splitter(&mut self, member: &mut MemberBase, pos: f32) {
         let pos = pos % 1.0;
         self.splitter = pos;
-        self.update_splitter(control);
+        self.update_splitter(unsafe { utils::base_to_impl_mut::<Splitted>(member) }.as_inner_mut().base_mut());
     }
     fn splitter(&self) -> f32 {
         self.splitter
@@ -463,7 +463,7 @@ fn splitter_moved(ll: &mut Splitted, position: i32) {
                 }
             }
         };
-    let (_, c, ll) = ll.as_parts_mut();
+    let (_, c, ll) = ll.as_base_parts_mut();
     ll.as_inner_mut().splitter = splitter;
     ll.as_inner_mut().update_children_layout(c);
     ll.as_inner_mut().draw_children(c);

@@ -38,6 +38,13 @@ impl QtApplication {
 }
 
 impl ApplicationInner for QtApplication {
+	fn frame_sleep(&self) -> u32 {
+		let interval = self.timer.interval();
+		if interval > -1 { interval as u32 } else { 0 }
+	}
+	fn set_frame_sleep(&mut self, value: u32) {
+		self.timer.set_interval(value as i32);
+	}
     fn get() -> Box<Application> {
         let mut args = QCoreApplicationArgs::from_real();
         let inner = unsafe { QApplication::new(args.get()) };
@@ -269,7 +276,7 @@ struct MemberIterator<'a> {
     index: usize,
 }
 impl<'a> Iterator for MemberIterator<'a> {
-    type Item = &'a (controls::Member + 'static);
+    type Item = &'a (dyn controls::Member + 'static);
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.index >= self.inner.windows.len() {
@@ -277,9 +284,9 @@ impl<'a> Iterator for MemberIterator<'a> {
             self.index = 0;
         }
         let ret = if self.needs_tray && self.is_tray {
-            self.inner.trays.get(self.index).map(|tray| common::cast_qobject_to_uimember::<Tray>(tray).unwrap() as &controls::Member)
+            self.inner.trays.get(self.index).map(|tray| common::cast_qobject_to_uimember::<Tray>(tray).unwrap() as &dyn controls::Member)
         } else if self.needs_window {
-            self.inner.windows.get(self.index).map(|window| common::cast_qobject_to_uimember::<Window>(window).unwrap() as &controls::Member)
+            self.inner.windows.get(self.index).map(|window| common::cast_qobject_to_uimember::<Window>(window).unwrap() as &dyn controls::Member)
         } else {
             return None;
         };
@@ -296,7 +303,7 @@ struct MemberIteratorMut<'a> {
     index: usize,
 }
 impl<'a> Iterator for MemberIteratorMut<'a> {
-    type Item = &'a mut (controls::Member);
+    type Item = &'a mut (dyn controls::Member);
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.needs_tray && self.index >= self.inner.windows.len() {
@@ -304,9 +311,9 @@ impl<'a> Iterator for MemberIteratorMut<'a> {
             self.index = 0;
         }
         let ret = if self.needs_tray && self.is_tray {
-            self.inner.trays.get_mut(self.index).map(|tray| common::cast_qobject_to_uimember_mut::<Tray>(tray).unwrap() as &mut controls::Member)
+            self.inner.trays.get_mut(self.index).map(|tray| common::cast_qobject_to_uimember_mut::<Tray>(tray).unwrap() as &mut dyn controls::Member)
         } else if self.needs_window {
-            self.inner.windows.get_mut(self.index).map(|window| common::cast_qobject_to_uimember_mut::<Window>(window).unwrap() as &mut controls::Member)
+            self.inner.windows.get_mut(self.index).map(|window| common::cast_qobject_to_uimember_mut::<Window>(window).unwrap() as &mut dyn controls::Member)
         } else {
             return None;
         };
