@@ -116,17 +116,6 @@ impl QtSplitted {
             }
         }
     }
-    fn draw_children(&mut self, control: &mut ControlBase) {
-        let (first, _) = self.children_sizes(control);
-        let o = self.layout_orientation();
-        let margins = self.base.widget.contents_margins();
-        let handle = self.base.widget.handle_width();
-        self.first.draw(Some((margins.left(), margins.top())));
-        match o {
-            layout::Orientation::Horizontal => self.second.draw(Some((margins.left() + first as i32 + handle, margins.top()))),
-            layout::Orientation::Vertical => self.second.draw(Some((margins.left(), margins.top() + first as i32 + handle))),
-        }
-    }
 }
 
 impl Drop for QtSplitted {
@@ -165,7 +154,6 @@ impl MemberInner for QtSplitted {}
 impl Drawable for QtSplitted {
     fn draw(&mut self, member: &mut MemberBase, control: &mut ControlBase) {
         self.base.draw(member, control);
-        self.draw_children(control);
     }
     fn measure(&mut self, _: &mut MemberBase, control: &mut ControlBase, parent_width: u16, parent_height: u16) -> (u16, u16, bool) {
         self.update_children_layout(control);
@@ -466,7 +454,6 @@ fn splitter_moved(ll: &mut Splitted, position: i32) {
     let (_, c, ll) = ll.as_base_parts_mut();
     ll.as_inner_mut().splitter = splitter;
     ll.as_inner_mut().update_children_layout(c);
-    ll.as_inner_mut().draw_children(c);
 }
 
 fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
@@ -477,6 +464,9 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
 
                 let (width, height) = ll.size();
                 ll.call_on_size(width, height);
+                
+                let (m, c, ll) = ll.as_base_parts_mut();
+                ll.draw(m, c);
             }
         }
         QEventType::Destroy => {

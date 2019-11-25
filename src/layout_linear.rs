@@ -1,6 +1,7 @@
 use crate::common::{self, *};
 
 use qt_widgets::box_layout::{BoxLayout as QBoxLayout, Direction};
+use qt_widgets::layout::Layout;
 use qt_widgets::frame::Frame as QFrame;
 
 pub type LinearLayout = Member<Control<MultiContainer<QtLinearLayout>>>;
@@ -30,7 +31,10 @@ impl LinearLayoutInner for QtLinearLayout {
         ));
         unsafe {
             let ll1 = ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget.as_mut() as *mut QFrame;
-            (&mut *ll1).set_layout(ll.as_inner_mut().as_inner_mut().as_inner_mut().layout.static_cast_mut());
+            let layout: &mut Layout = ll.as_inner_mut().as_inner_mut().as_inner_mut().layout.static_cast_mut();
+            let layout = layout as *mut Layout;
+            (&mut *ll1).set_layout(layout);
+            ll.as_inner_mut().as_inner_mut().as_inner_mut().layout.add_stretch(0);
 
             let ptr = ll.as_ref() as *const _ as u64;
             let qo: &mut QObject = ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget.static_cast_mut();
@@ -78,20 +82,6 @@ impl MemberInner for QtLinearLayout {}
 impl Drawable for QtLinearLayout {
     fn draw(&mut self, member: &mut MemberBase, control: &mut ControlBase) {
         self.base.draw(member, control);
-
-        let orientation = self.layout_orientation();
-        let margins = self.layout.contents_margins();
-        let spacing = self.layout.as_ref().spacing();
-        let mut x = margins.left();
-        let mut y = margins.top();
-        for child in self.children.as_mut_slice() {
-            child.draw(Some((x, y)));
-            let (xx, yy) = child.size();
-            match orientation {
-                layout::Orientation::Horizontal => x += xx as i32 + spacing,
-                layout::Orientation::Vertical => y += yy as i32 + spacing,
-            }
-        }
     }
     fn measure(&mut self, member: &mut MemberBase, control: &mut ControlBase, parent_width: u16, parent_height: u16) -> (u16, u16, bool) {
         use std::cmp::max;
@@ -370,6 +360,9 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
 
                 let (width, height) = ll.size();
                 ll.call_on_size(width, height);
+                
+                let (m, c, ll) = ll.as_base_parts_mut();
+                ll.draw(m, c);
             }
         }
         QEventType::Destroy => {

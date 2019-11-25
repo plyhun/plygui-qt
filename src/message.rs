@@ -1,6 +1,7 @@
 use crate::common::{self, *};
 
 use qt_widgets::message_box::{ButtonRole, Icon, MessageBox as QMessageBox};
+use qt_core::qt::WindowModality;
 
 use std::borrow::Cow;
 
@@ -58,6 +59,7 @@ impl MessageInner for QtMessage {
 
             if let Some(parent) = parent {
                 message.message.set_parent(common::cast_member_to_qwidget(parent).window());
+                message.message.set_window_modality(WindowModality::Window);
             }
             message.actions.iter().for_each(|a| {
                 (&mut *qmessage).add_button((&QString::from_std_str(a.0.as_str()), ButtonRole::ActionRole));

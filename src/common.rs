@@ -112,7 +112,7 @@ impl<T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> QtCont
     }
     pub fn draw(&mut self, _member: &mut MemberBase, control: &mut ControlBase) {
         if let Some(coords) = control.coords {
-            self.widget.static_cast_mut().move_((coords.0 as i32, coords.1 as i32));
+            //self.widget.static_cast_mut().move_((coords.0 as i32, coords.1 as i32));
             match control.layout.width {
                 layout::Size::MatchParent => {
                     self.widget.static_cast_mut().set_minimum_width(1);

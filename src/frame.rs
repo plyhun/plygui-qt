@@ -233,10 +233,10 @@ impl MemberInner for QtFrame {}
 impl Drawable for QtFrame {
     fn draw(&mut self, member: &mut MemberBase, control: &mut ControlBase) {
         self.base.draw(member, control);
-        let margins = self.base.widget.contents_margins();
+        /*let margins = self.base.widget.contents_margins();
         if let Some(ref mut child) = self.child {
-            child.draw(Some((margins.left(), margins.top())));
-        }
+            child.draw(Some((margins.left(), margins.top() + self.label_size.height())));
+        }*/
     }
     fn measure(&mut self, member: &mut MemberBase, control: &mut ControlBase, parent_width: u16, parent_height: u16) -> (u16, u16, bool) {
         let old_size = control.measured;
@@ -307,11 +307,9 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
             if let Some(fr) = cast_qobject_to_uimember_mut::<Frame>(object) {
                 use plygui_api::controls::HasSize;
 
-                if fr.as_inner().as_inner().as_inner().base.dirty {
-                    fr.as_inner_mut().as_inner_mut().as_inner_mut().base.dirty = false;
-                    let (width, height) = fr.size();
-                    fr.call_on_size(width, height);
-                }
+                fr.as_inner_mut().as_inner_mut().as_inner_mut().base.dirty = false;
+                let (width, height) = fr.size();
+                fr.call_on_size(width, height);
             }
         }
         QEventType::Destroy => {

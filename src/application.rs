@@ -15,6 +15,8 @@ use plygui_api::{controls, types};
 use std::borrow::Cow;
 use std::process::exit;
 
+const DEFAULT_FRAME_SLEEP_MS: u32 = 10;
+
 pub type Application = development::Application<QtApplication>;
 
 pub struct QtApplication {
@@ -64,6 +66,7 @@ impl ApplicationInner for QtApplication {
         {
             let selfptr = app.as_ref() as *const _ as u64;
             let app = app.as_inner_mut();
+            app.set_frame_sleep(DEFAULT_FRAME_SLEEP_MS);
             app.queue = SlotNoArgs::new(move || {
                 let mut frame_callbacks = 0;
                 while frame_callbacks < defaults::MAX_FRAME_CALLBACKS {

@@ -80,15 +80,15 @@ impl Drawable for QtList {
 
         let margins = self.base.widget.contents_margins();
         let spacing = self.base.widget.spacing();
-        let mut x = margins.left();
+        let x = margins.left();
         let mut y = margins.top();
         for child in self.items.as_mut_slice() {
             child.draw(Some((x, y)));
-            let (xx, yy) = child.size();
+            let (_, yy) = child.size();
             y += yy as i32 + spacing;
         }
     }
-    fn measure(&mut self, member: &mut MemberBase, control: &mut ControlBase, parent_width: u16, parent_height: u16) -> (u16, u16, bool) {
+    fn measure(&mut self, _: &mut MemberBase, control: &mut ControlBase, parent_width: u16, parent_height: u16) -> (u16, u16, bool) {
         let old_size = control.measured;
         control.measured = match control.visibility {
             types::Visibility::Gone => (0, 0),
@@ -133,7 +133,7 @@ impl ControlInner for QtList {
         let margins = self.base.widget.contents_margins();
 
         //let orientation = self.layout_orientation();
-        let mut x = margins.left();
+        let x = margins.left();
         let mut y = margins.top();
         let pw = utils::coord_to_size(cmp::max(0, pw as i32 - margins.left() - margins.right()));
         let ph = utils::coord_to_size(cmp::max(0, ph as i32 - margins.top() - margins.bottom()));
@@ -141,7 +141,7 @@ impl ControlInner for QtList {
         for child in self.items.as_mut_slice() {
             let self2: &mut List = unsafe { utils::base_to_impl_mut(member) };
             child.on_added_to_container(self2, x, y, pw, ph);
-            let (xx, yy) = child.size();
+            let (_, yy) = child.size();
             y += yy as i32 + spacing;
         }
     }
