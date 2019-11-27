@@ -2,6 +2,7 @@ use crate::common::{self, *};
 
 use qt_widgets::box_layout::{BoxLayout as QBoxLayout, Direction};
 use qt_widgets::layout::Layout;
+use qt_widgets::spacer_item::SpacerItem;
 use qt_widgets::frame::Frame as QFrame;
 
 pub type LinearLayout = Member<Control<MultiContainer<QtLinearLayout>>>;
@@ -34,7 +35,6 @@ impl LinearLayoutInner for QtLinearLayout {
             let layout: &mut Layout = ll.as_inner_mut().as_inner_mut().as_inner_mut().layout.static_cast_mut();
             let layout = layout as *mut Layout;
             (&mut *ll1).set_layout(layout);
-            ll.as_inner_mut().as_inner_mut().as_inner_mut().layout.add_stretch(0);
 
             let ptr = ll.as_ref() as *const _ as u64;
             let qo: &mut QObject = ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget.static_cast_mut();
@@ -53,7 +53,6 @@ impl Drop for QtLinearLayout {
                     child.on_removed_from_container(self2);
                 }
             }
-            //self.layout = CppBox::default();
         }
     }
 }
@@ -303,6 +302,22 @@ impl MultiContainerInner for QtLinearLayout {
         unsafe {
             (self.base.widget.as_mut().layout().as_mut().unwrap().dynamic_cast_mut().unwrap() as &mut QBoxLayout).insert_widget((index as i32, common::cast_control_to_qwidget_mut(self.children[index].as_mut()) as *mut QWidget));
         }
+        
+        if self.children.iter().find(|child| match self.layout_orientation() {
+                    layout::Orientation::Horizontal => child.layout_width() == layout::Size::MatchParent,
+                    layout::Orientation::Vertical => child.layout_height() == layout::Size::MatchParent,
+                }).is_none() {
+            let stretch = self.layout.item_at(self.layout.count()-1);
+            if stretch.is_null() || (unsafe { &*stretch }.dynamic_cast() as Option<&SpacerItem>).is_none() {
+                self.layout.add_stretch(0);
+            }
+        } else {
+            let stretch = self.layout.item_at(self.layout.count()-1);
+            if !stretch.is_null() && (unsafe { &*stretch }.dynamic_cast() as Option<&SpacerItem>).is_some() {
+                unsafe { self.layout.remove_item(stretch) };
+            }
+        }
+        
         self.base.invalidate();
         old
     }
@@ -311,6 +326,20 @@ impl MultiContainerInner for QtLinearLayout {
             let mut item = self.children.remove(index);
             unsafe {
                 (self.base.widget.as_mut().layout().as_mut().unwrap().dynamic_cast_mut().unwrap() as &mut QBoxLayout).remove_widget(common::cast_control_to_qwidget_mut(item.as_mut()));
+            }
+            if self.children.iter().find(|child| match self.layout_orientation() {
+                        layout::Orientation::Horizontal => child.layout_width() == layout::Size::MatchParent,
+                        layout::Orientation::Vertical => child.layout_height() == layout::Size::MatchParent,
+                    }).is_none() {
+                let stretch = self.layout.item_at(self.layout.count()-1);
+                if stretch.is_null() || (unsafe { &*stretch }.dynamic_cast() as Option<&SpacerItem>).is_none() {
+                    self.layout.add_stretch(0);
+                }
+            } else {
+                let stretch = self.layout.item_at(self.layout.count()-1);
+                if !stretch.is_null() && (unsafe { &*stretch }.dynamic_cast() as Option<&SpacerItem>).is_some() {
+                    unsafe { self.layout.remove_item(stretch) };
+                }
             }
             self.base.invalidate();
             Some(item)

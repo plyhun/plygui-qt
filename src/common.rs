@@ -111,24 +111,37 @@ impl<T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> QtCont
         self.widget.as_mut().static_cast_mut()
     }
     pub fn draw(&mut self, _member: &mut MemberBase, control: &mut ControlBase) {
-        if let Some(coords) = control.coords {
+        if let Some(_coords) = control.coords {
             //self.widget.static_cast_mut().move_((coords.0 as i32, coords.1 as i32));
-            match control.layout.width {
+            let wpolicy = match control.layout.width {
                 layout::Size::MatchParent => {
                     self.widget.static_cast_mut().set_minimum_width(1);
+                    QPolicy::Expanding
                 }
-                _ => {
-                    self.widget.static_cast_mut().set_fixed_width(control.measured.0 as i32);
+                layout::Size::WrapContent => {
+                    self.widget.static_cast_mut().set_minimum_width(1);
+                    QPolicy::Minimum
                 }
-            }
-            match control.layout.height {
+                layout::Size::Exact(value) => {
+                    self.widget.static_cast_mut().set_fixed_width(value as i32);
+                    QPolicy::Fixed
+                }
+            };
+            let hpolicy = match control.layout.height {
                 layout::Size::MatchParent => {
                     self.widget.static_cast_mut().set_minimum_height(1);
+                    QPolicy::Expanding
                 }
-                _ => {
-                    self.widget.static_cast_mut().set_fixed_height(control.measured.1 as i32);
+                layout::Size::WrapContent => {
+                    self.widget.static_cast_mut().set_minimum_height(1);
+                    QPolicy::Minimum
                 }
-            }
+                layout::Size::Exact(value) => {
+                    self.widget.static_cast_mut().set_fixed_height(value as i32);
+                    QPolicy::Fixed
+                }
+            };
+            self.widget.static_cast_mut().set_size_policy((wpolicy, hpolicy));
         }
     }
     pub fn invalidate(&mut self) -> bool {

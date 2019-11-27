@@ -12,6 +12,7 @@ pub struct QtImage {
 
     scale: types::ImageScalePolicy,
     pixmap: CppBox<QPixmap>,
+    original: CppBox<QImage>,
     content: image::DynamicImage,
 }
 
@@ -23,6 +24,7 @@ impl ImageInner for QtImage {
                     base: QtControlBase::with_params(QLabel::new(()), event_handler),
                     scale: types::ImageScalePolicy::FitCenter,
                     pixmap: unsafe { CppBox::new(ptr::null_mut()) },
+                    original: common::image_to_qimage(&content),
                     content: content,
                 },
                 (),
@@ -55,8 +57,7 @@ impl QtImage {
     
         let (w, h) = self.content.dimensions();
         let (iw, ih) = control.measured;
-        let img = common::image_to_qimage(&self.content);
-        let pixmap = QPixmap::from_image(img.as_ref());
+        let pixmap = QPixmap::from_image(self.original.as_ref());
         self.pixmap = match self.scale {
             types::ImageScalePolicy::FitCenter => pixmap.scaled((iw as i32, ih as i32, AspectRatioMode::KeepAspectRatio)),
             types::ImageScalePolicy::CropCenter => pixmap.copy(&QRect::new(((w as i32 - iw as i32) / 2, (h as i32 - ih as i32) / 2, iw as i32, ih as i32))),
