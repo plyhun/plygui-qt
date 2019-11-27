@@ -1,27 +1,68 @@
 use crate::common::{self, *};
 
-use qt_widgets::list_view::{ListView as QListView};
+use qt_widgets::list_widget::{ListWidget as QListWidget};
+use qt_widgets::list_widget_item::{ListWidgetItem};
 
 pub type List = Member<Control<Adapter<QtList>>>;
 
 #[repr(C)]
 pub struct QtList {
-    base: common::QtControlBase<List, QListView>,
+    base: common::QtControlBase<List, QListWidget>,
     items: Vec<Box<dyn controls::Control>>,
 }
 
 impl ListInner for QtList {}
 
+impl QtList {
+    fn add_item_inner(&mut self, base: &mut MemberBase, i: usize) {
+        let (member, control, adapter) = List::adapter_base_parts_mut(base);
+        let (pw, ph) = control.measured;
+        let this: &mut List = unsafe { utils::base_to_impl_mut(member) };
+        
+        let mut item = adapter.adapter.spawn_item_view(i, this);
+        item.on_added_to_container(this, 0, 0, utils::coord_to_size(pw as i32) as u16, utils::coord_to_size(ph as i32) as u16);
+        self.items.insert(i, item);
+        let widget = common::cast_control_to_qwidget_mut(self.items.get_mut(i).unwrap().as_mut());        
+        
+        let mut item = ListWidgetItem::new(());
+        
+        unsafe { 
+            item.set_size_hint(&widget.size_hint());
+            self.base.widget.insert_item_unsafe(i as i32, item.as_mut_ptr()); 
+            self.base.widget.set_item_widget(item.as_mut_ptr(), widget);
+            widget.show();
+        }
+    }
+    fn remove_item_inner(&mut self, base: &mut MemberBase, i: usize) {
+        let this: &mut List = unsafe { utils::base_to_impl_mut(base) };
+        self.items.remove(i).on_removed_from_container(this); 
+        
+        let item = self.base.widget.item(i as i32);
+        unsafe { self.base.widget.remove_item_widget(item); }
+        self.items.remove(i);
+    }
+}
+
 impl AdapterViewInner for QtList {
-	fn on_item_change(&mut self, member: &mut MemberBase, change: types::Change) {
-		
+	fn on_item_change(&mut self, base: &mut MemberBase, change: types::Change) {
+		match change {
+            types::Change::Added(at) => {
+                self.add_item_inner(base, at);
+            },
+            types::Change::Removed(at) => {
+                self.remove_item_inner(base, at);
+            },
+            types::Change::Edited(_) => {
+            },
+        }
+        self.base.invalidate();
 	}
     fn with_adapter(adapter: Box<dyn types::Adapter>) -> Box<List> {
         let mut ll = Box::new(Member::with_inner(
             Control::with_inner(
                 Adapter::with_inner(
                     QtList {
-                        base: common::QtControlBase::with_params(QListView::new(), event_handler),
+                        base: common::QtControlBase::with_params(QListWidget::new(), event_handler),
                         items: Vec::new(),
                     },
                     adapter,
@@ -130,19 +171,10 @@ impl ControlInner for QtList {
         self.measure(member, control, pw, ph);
         self.base.dirty = false;
         self.draw(member, control);
-        let margins = self.base.widget.contents_margins();
+        let (member, _, adapter) = List::adapter_base_parts_mut(member);
 
-        //let orientation = self.layout_orientation();
-        let x = margins.left();
-        let mut y = margins.top();
-        let pw = utils::coord_to_size(cmp::max(0, pw as i32 - margins.left() - margins.right()));
-        let ph = utils::coord_to_size(cmp::max(0, ph as i32 - margins.top() - margins.bottom()));
-        let spacing = self.base.widget.spacing();
-        for child in self.items.as_mut_slice() {
-            let self2: &mut List = unsafe { utils::base_to_impl_mut(member) };
-            child.on_added_to_container(self2, x, y, pw, ph);
-            let (_, yy) = child.size();
-            y += yy as i32 + spacing;
+        for i in 0..adapter.adapter.len() {
+            self.add_item_inner(member, i);
         }
     }
     fn on_removed_from_container(&mut self, member: &mut MemberBase, _control: &mut ControlBase, _parent: &dyn controls::Container) {
