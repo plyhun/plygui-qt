@@ -61,12 +61,15 @@ impl HasImageInner for QtTray {
         unimplemented!()
     }
     fn set_image(&mut self, _base: &mut MemberBase, i: Cow<image::DynamicImage>) {
-    	let i = {
+    	use image::GenericImageView;
+	    let i = {
     		let status_size = 22; //self.tray.size() as u32;
     		i.resize(status_size, status_size, image::FilterType::Lanczos3)
     	};
-    	let i = common::image_to_qimage(&i);
-    	self.tray.set_icon(&QIcon::new(QPixmap::from_image(i.as_ref()).as_ref()));
+    	let raw = i.to_rgba().into_raw();
+	    let (w, h) = i.dimensions();
+        let i = unsafe { QImage::new_unsafe((raw.as_ptr(), w as i32, h as i32, Format::FormatRGBA8888)) };
+        self.tray.set_icon(&QIcon::new(QPixmap::from_image(i.as_ref()).as_ref()));
     }
 }
 impl TrayInner for QtTray {

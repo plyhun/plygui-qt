@@ -1,4 +1,5 @@
 pub use qt_core::connection::Signal;
+pub use qt_core::byte_array::ByteArray;
 pub use qt_core::cpp_utils::{CppBox, CppDeletable, DynamicCast, StaticCast};
 pub use qt_core::event::{Event as QEvent, Type as QEventType};
 pub use qt_core::flags::Flags;
@@ -286,13 +287,13 @@ pub fn qorientation_to_orientation(o: QOrientation) -> layout::Orientation {
         QOrientation::Vertical => layout::Orientation::Vertical,
     }
 }
-pub fn image_to_qimage(src: &image::DynamicImage) -> CppBox<QImage> {
+/*pub fn image_to_qimage(src: &image::DynamicImage) -> CppBox<QImage> {
     use image::GenericImageView;
     
     let (w, h) = src.dimensions();
     let raw = src.to_rgba().into_raw();
     unsafe { QImage::new_unsafe((raw.as_ptr(), w as i32, h as i32, Format::FormatRGBA8888)) }
-}
+}*/
 pub fn append_item<T: controls::Member>(menu: &mut QMenu, label: String, action: callbacks::Action, storage: &mut Vec<(callbacks::Action, SlotNoArgs<'static>)>, slot_spawn: fn(id: usize, selfptr: *mut T) -> SlotNoArgs<'static>, selfptr: *mut T) {
     let id = storage.len();
     let action = (action, slot_spawn(id, selfptr));
