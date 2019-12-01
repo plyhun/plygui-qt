@@ -231,10 +231,6 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
         QEventType::Resize => {
             if let Some(window) = common::cast_qobject_to_uimember_mut::<Window>(object) {
                 let (width, height) = window.as_inner().as_inner().as_inner().size();
-                if let Some(ref mut child) = window.as_inner_mut().as_inner_mut().as_inner_mut().child {
-                    child.measure(width, height);
-                    child.draw(Some((0, 0)));
-                }
                 window.call_on_size(width, height);
             }
         }

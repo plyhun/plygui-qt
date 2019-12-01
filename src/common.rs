@@ -12,6 +12,7 @@ pub use qt_core::variant::Variant as QVariant;
 pub use qt_core_custom_events::custom_event_filter::CustomEventFilter;
 pub use qt_gui::image::{Format, Image as QImage};
 pub use qt_gui::pixmap::Pixmap as QPixmap;
+pub use qt_gui::resize_event::ResizeEvent;
 pub use qt_widgets::menu::Menu as QMenu;
 pub use qt_widgets::size_policy::Policy as QPolicy;
 pub use qt_widgets::widget::Widget as QWidget;
@@ -96,7 +97,6 @@ impl<T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> QtCont
             dirty: true,
             _marker: marker::PhantomData,
         };
-        //base.widget.as_mut().static_cast_mut().set_size_policy((QPolicy::Fixed, QPolicy::Fixed));
         base.widget.as_mut().static_cast_mut().set_minimum_size((1, 1));
         unsafe {
             let filter: *mut QObject = base.event_callback.static_cast_mut() as *mut QObject;

@@ -55,14 +55,14 @@ impl QtImage {
     
         let (w, h) = self.content.dimensions();
         let (iw, ih) = control.measured;
-	    let raw = self.content.to_rgba().into_raw();
+        let raw = self.content.to_rgba().into_raw();
 	    let img = unsafe { QImage::new_unsafe((raw.as_ptr(), w as i32, h as i32, Format::FormatRGBA8888)) };
         let pixmap = QPixmap::from_image(img.as_ref());
         self.pixmap = match self.scale {
             types::ImageScalePolicy::FitCenter => pixmap.scaled((iw as i32, ih as i32, AspectRatioMode::KeepAspectRatio)),
             types::ImageScalePolicy::CropCenter => pixmap.copy(&QRect::new(((w as i32 - iw as i32) / 2, (h as i32 - ih as i32) / 2, iw as i32, ih as i32))),
         };
-        self.base.widget.set_pixmap(pixmap.as_ref());
+        self.base.widget.set_pixmap(self.pixmap.as_ref());
     }
 }
 
@@ -163,16 +163,20 @@ pub(crate) fn spawn() -> Box<controls::Control> {
 fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
     match event.type_() {
         QEventType::Resize => {
-            let ptr = unsafe { object.property(PROPERTY.as_ptr() as *const i8).to_u_long_long() };
-            if ptr != 0 {
-                let sc: &mut Image = unsafe { mem::transmute(ptr) };
-                let sc2: &mut Image = unsafe { mem::transmute(ptr) };
-                sc.as_inner_mut().as_inner_mut().update_image(sc2.as_inner_mut().base_mut());
-                if sc.as_inner().as_inner().base.dirty {
-                    sc.as_inner_mut().as_inner_mut().base.dirty = false;
-                    let (width, height) = sc.as_inner().base().measured;
-                    sc.call_on_size(width, height);
+            if let Some(this) = cast_qobject_to_uimember_mut::<Image>(object) {
+                use qt_core::cpp_utils::UnsafeStaticCast;
+            	
+                let size = unsafe { event.static_cast_mut() as &mut ResizeEvent };
+                let size = (
+                	utils::coord_to_size(size.size().width()), 
+                	utils::coord_to_size(size.size().height())
+                );
+                this.as_inner_mut().base_mut().measured = size;
+                {
+                	let (_, c, this) = this.as_base_parts_mut();
+                	this.update_image(c);
                 }
+	            this.call_on_size(size.0, size.1);
             }
         }
         QEventType::Destroy => {

@@ -265,11 +265,16 @@ default_impls_as!(List);
 fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
     match event.type_() {
         QEventType::Resize => {
-            if let Some(ll) = cast_qobject_to_uimember_mut::<List>(object) {
-                use plygui_api::controls::HasSize;
-
-                let (width, height) = ll.size();
-                ll.call_on_size(width, height);
+            if let Some(this) = cast_qobject_to_uimember_mut::<List>(object) {
+                use qt_core::cpp_utils::UnsafeStaticCast;
+            	
+                let size = unsafe { event.static_cast_mut() as &mut ResizeEvent };
+                let size = (
+                	utils::coord_to_size(size.size().width()), 
+                	utils::coord_to_size(size.size().height())
+                );
+                this.as_inner_mut().base_mut().measured = size;
+                this.call_on_size(size.0, size.1);
             }
         }
         QEventType::Destroy => {
