@@ -8,7 +8,8 @@ pub type List = Member<Control<Adapter<QtList>>>;
 #[repr(C)]
 pub struct QtList {
     base: common::QtControlBase<List, QListWidget>,
-    items: Vec<Box<dyn controls::Control>>,
+    items: Vec<(Box<dyn controls::Control>, CppBox<ListWidgetItem>)>,
+    h_left_clicked: SlotNoArgs<'static>,
 }
 
 impl ListInner for QtList {}
@@ -20,26 +21,25 @@ impl QtList {
         let this: &mut List = unsafe { utils::base_to_impl_mut(member) };
         
         let mut item = adapter.adapter.spawn_item_view(i, this);
-        item.on_added_to_container(this, 0, 0, utils::coord_to_size(pw as i32) as u16, utils::coord_to_size(ph as i32) as u16);
-        self.items.insert(i, item);
-        let widget = common::cast_control_to_qwidget_mut(self.items.get_mut(i).unwrap().as_mut());        
         
-        let mut item = ListWidgetItem::new(());
+        item.on_added_to_container(this, 0, 0, utils::coord_to_size(pw as i32) as u16, utils::coord_to_size(ph as i32) as u16);
+        self.items.insert(i, (item, ListWidgetItem::new(())));
+        let (item, witem) = self.items.get_mut(i).unwrap();
+        let widget = common::cast_control_to_qwidget_mut(item.as_mut());        
         
         unsafe { 
-            item.set_size_hint(&widget.size_hint());
-            self.base.widget.insert_item_unsafe(i as i32, item.as_mut_ptr()); 
-            self.base.widget.set_item_widget(item.as_mut_ptr(), widget);
+            witem.set_size_hint(&widget.size_hint());
+            self.base.widget.insert_item_unsafe(i as i32, witem.as_mut_ptr()); 
+            self.base.widget.set_item_widget(witem.as_mut_ptr(), widget);
             widget.show();
         }
     }
     fn remove_item_inner(&mut self, base: &mut MemberBase, i: usize) {
         let this: &mut List = unsafe { utils::base_to_impl_mut(base) };
-        self.items.remove(i).on_removed_from_container(this); 
+        self.items.remove(i).0.on_removed_from_container(this); 
         
         let item = self.base.widget.item(i as i32);
         unsafe { self.base.widget.remove_item_widget(item); }
-        self.items.remove(i);
     }
 }
 
@@ -64,6 +64,7 @@ impl AdapterViewInner for QtList {
                     QtList {
                         base: common::QtControlBase::with_params(QListWidget::new(), event_handler),
                         items: Vec::new(),
+                        h_left_clicked: SlotNoArgs::new(move || {}), // dummy
                     },
                     adapter,
                 ),
@@ -73,6 +74,19 @@ impl AdapterViewInner for QtList {
         ));
         unsafe {
             let ptr = ll.as_ref() as *const _ as u64;
+            let obj = ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget.static_cast_mut() as *mut QObject;
+            ll.as_inner_mut().as_inner_mut().as_inner_mut().h_left_clicked = SlotNoArgs::new(move || {
+                let this = cast_qobject_to_uimember_mut::<List>(&mut *obj).unwrap();
+                let clicked = this.as_inner().as_inner().as_inner().base.widget.current_item();
+                let i = this.as_inner().as_inner().as_inner().base.widget.row(clicked);
+                let (ref mut clicked,_) = this.as_inner_mut().as_inner_mut().as_inner_mut().items.get_mut(i as usize).unwrap();
+                let this = cast_qobject_to_uimember_mut::<List>(&mut *obj).unwrap();
+                if let Some(ref mut cb) = this.as_inner_mut().as_inner_mut().base_mut().on_item_click {
+                    let this = cast_qobject_to_uimember_mut::<List>(&mut *obj).unwrap();
+                    (cb.as_mut())(this, i as usize, clicked.as_mut());
+                }
+            });
+            ll.as_inner().as_inner().as_inner().base.widget.signals().item_clicked().connect(&ll.as_inner().as_inner().as_inner().h_left_clicked);
             let qo: &mut QObject = ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget.static_cast_mut();
             qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::new0(ptr));
         }
@@ -85,7 +99,7 @@ impl Drop for QtList {
         if !self.base.widget.is_null() {
             let qo = self.base.widget.as_mut().static_cast_mut() as *mut QObject;
             if let Some(self2) = common::cast_qobject_to_uimember_mut::<List>(unsafe { &mut *qo }) {
-                for mut child in self.items.drain(..) {
+                for (mut child,_) in self.items.drain(..) {
                     child.on_removed_from_container(self2);
                 }
             }
@@ -119,7 +133,7 @@ impl Drawable for QtList {
     fn draw(&mut self, member: &mut MemberBase, control: &mut ControlBase) {
         self.base.draw(member, control);
 
-        let margins = self.base.widget.contents_margins();
+        /*let margins = self.base.widget.contents_margins();
         let spacing = self.base.widget.spacing();
         let x = margins.left();
         let mut y = margins.top();
@@ -127,7 +141,7 @@ impl Drawable for QtList {
             child.draw(Some((x, y)));
             let (_, yy) = child.size();
             y += yy as i32 + spacing;
-        }
+        }*/
     }
     fn measure(&mut self, _: &mut MemberBase, control: &mut ControlBase, parent_width: u16, parent_height: u16) -> (u16, u16, bool) {
         let old_size = control.measured;
@@ -166,11 +180,7 @@ impl HasLayoutInner for QtList {
 }
 
 impl ControlInner for QtList {
-    fn on_added_to_container(&mut self, member: &mut MemberBase, control: &mut ControlBase, _parent: &dyn controls::Container, x: i32, y: i32, pw: u16, ph: u16) {
-        control.coords = Some((x, y));
-        self.measure(member, control, pw, ph);
-        self.base.dirty = false;
-        self.draw(member, control);
+    fn on_added_to_container(&mut self, member: &mut MemberBase, _: &mut ControlBase, _parent: &dyn controls::Container, _x: i32, _y: i32, _pw: u16, _ph: u16) {
         let (member, _, adapter) = List::adapter_base_parts_mut(member);
 
         for i in 0..adapter.adapter.len() {
@@ -179,7 +189,7 @@ impl ControlInner for QtList {
     }
     fn on_removed_from_container(&mut self, member: &mut MemberBase, _control: &mut ControlBase, _parent: &dyn controls::Container) {
         let self2: &mut List = unsafe { utils::base_to_impl_mut(member) };
-        for child in self.items.iter_mut() {
+        for (child,_) in self.items.iter_mut() {
             child.on_removed_from_container(self2);
         }
     }
@@ -207,7 +217,7 @@ impl ControlInner for QtList {
 
 impl ContainerInner for QtList {
     fn find_control_mut(&mut self, arg: types::FindBy) -> Option<&mut dyn controls::Control> {
-        for child in self.items.as_mut_slice() {
+        for (child,_) in self.items.as_mut_slice() {
             match arg {
                 types::FindBy::Id(ref id) => {
                     if child.as_member_mut().id() == *id {
@@ -233,7 +243,7 @@ impl ContainerInner for QtList {
         None
     }
     fn find_control(&self, arg: types::FindBy) -> Option<&dyn controls::Control> {
-        for child in self.items.as_slice() {
+        for (child,_) in self.items.as_slice() {
             match arg {
                 types::FindBy::Id(ref id) => {
                     if child.as_member().id() == *id {
