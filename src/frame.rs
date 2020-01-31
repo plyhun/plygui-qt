@@ -1,9 +1,9 @@
 use crate::common::{self, *};
 
-use qt_core::rect::Rect as QRect;
-use qt_gui::font_metrics::FontMetrics as QFontMetrics;
-use qt_widgets::group_box::GroupBox as QGroupBox;
-use qt_widgets::stacked_layout::StackedLayout as QStackedLayout;
+use qt_core::QRect;
+use qt_gui::QFontMetrics;
+use qt_widgets::QGroupBox;
+use qt_widgets::QStackedLayout;
 
 use std::borrow::Cow;
 
@@ -305,9 +305,7 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
     match event.type_() {
         QEventType::Resize => {
             if let Some(this) = cast_qobject_to_uimember_mut::<Frame>(object) {
-                use qt_core::cpp_utils::UnsafeStaticCast;
-            	
-                let size = unsafe { event.static_cast_mut() as &mut ResizeEvent };
+                let size = unsafe { event.static_cast_mut() as &mut QResizeEvent };
                 let size = (
                 	utils::coord_to_size(size.size().width()), 
                 	utils::coord_to_size(size.size().height())

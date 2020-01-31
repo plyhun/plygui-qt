@@ -1,22 +1,21 @@
-pub use qt_core::connection::Signal;
-pub use qt_core::byte_array::ByteArray;
-pub use qt_core::cpp_utils::{CppBox, CppDeletable, DynamicCast, StaticCast};
-pub use qt_core::event::{Event as QEvent, Type as QEventType};
-pub use qt_core::flags::Flags;
-pub use qt_core::object::Object as QObject;
-pub use qt_core::qt::Orientation as QOrientation;
-pub use qt_core::size::Size as QSize;
-pub use qt_core::slots::SlotNoArgs;
-pub use qt_core::string::String as QString;
-pub use qt_core::variant::Variant as QVariant;
+pub use qt_core::Signal;
+pub use qt_core::QByteArray;
+pub use qt_core::{QEvent, q_event::Type as QEventType};
+pub use qt_core::QFlags;
+pub use qt_core::QObject;
+pub use qt_core::Orientation as QOrientation;
+pub use qt_core::QSize;
+pub use qt_core::Slot;
+pub use qt_core::QString;
+pub use qt_core::QVariant;
 pub use qt_core_custom_events::custom_event_filter::CustomEventFilter;
-pub use qt_gui::image::{Format, Image as QImage};
-pub use qt_gui::pixmap::Pixmap as QPixmap;
-pub use qt_gui::resize_event::ResizeEvent;
-pub use qt_widgets::menu::Menu as QMenu;
-pub use qt_widgets::size_policy::Policy as QPolicy;
-pub use qt_widgets::widget::Widget as QWidget;
-
+pub use qt_gui::{q_image::Format, QImage};
+pub use qt_gui::QPixmap;
+pub use qt_gui::QResizeEvent;
+pub use qt_widgets::QMenu;
+pub use qt_widgets::q_size_policy::Policy as QSizePolicy;
+pub use qt_widgets::QWidget;
+pub use qt_widgets::cpp_core::{CppBox, CppDeletable, DynamicCast, StaticUpcast, StaticDowncast, Ref, MutRef};
 pub use std::ffi::CString;
 pub use std::os::raw::c_void;
 pub use std::{cmp, marker, mem, ops, ptr, sync::mpsc};
@@ -77,7 +76,7 @@ impl ops::DerefMut for QtId {
 impl NativeId for QtId {}
 
 #[repr(C)]
-pub struct QtControlBase<T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> {
+pub struct QtControlBase<T: controls::Control + Sized, Q: StaticUpcast<QWidget> + CppDeletable> {
     pub widget: CppBox<Q>,
     pub dirty: bool,
 
@@ -86,7 +85,7 @@ pub struct QtControlBase<T: controls::Control + Sized, Q: StaticCast<QWidget> + 
     _marker: marker::PhantomData<T>,
 }
 
-impl<T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> QtControlBase<T, Q> {
+impl<T: controls::Control + Sized, Q: StaticUpcast<QWidget> + CppDeletable> QtControlBase<T, Q> {
     pub fn with_params<F>(widget: CppBox<Q>, event_callback: F) -> QtControlBase<T, Q>
     where
         F: for<'a, 'b> FnMut(&'a mut QObject, &'b mut QEvent) -> bool,
@@ -97,62 +96,62 @@ impl<T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> QtCont
             dirty: true,
             _marker: marker::PhantomData,
         };
-        base.widget.as_mut().static_cast_mut().set_minimum_size((1, 1));
+        base.widget.static_upcast_mut().set_minimum_size_2a(1, 1);
         unsafe {
-            let filter: *mut QObject = base.event_callback.static_cast_mut() as *mut QObject;
-            let qobject: &mut QObject = base.widget.as_mut().static_cast_mut().static_cast_mut();
+            let filter: *mut QObject = base.event_callback.static_upcast_mut::<QObject>().as_mut_raw_ptr();
+            let qobject: &mut QObject = &mut base.widget.static_upcast_mut();
             qobject.install_event_filter(filter);
         }
         base
     }
     pub fn as_qwidget(&self) -> &QWidget {
-        self.widget.as_ref().static_cast()
+        &self.widget.static_upcast()
     }
     pub fn as_qwidget_mut(&mut self) -> &mut QWidget {
-        self.widget.as_mut().static_cast_mut()
+        &mut self.widget.static_upcast_mut()
     }
     pub fn draw(&mut self, _member: &mut MemberBase, control: &mut ControlBase) {
         if let Some(_coords) = control.coords {
-            //self.widget.static_cast_mut().move_((coords.0 as i32, coords.1 as i32));
+            //self.widget.static_upcast_mut().move_((coords.0 as i32, coords.1 as i32));
             let wpolicy = match control.layout.width {
                 layout::Size::MatchParent => {
-                    self.widget.static_cast_mut().set_minimum_width(1);
-                    QPolicy::Expanding
+                    self.widget.static_upcast_mut().set_minimum_width(1);
+                    QSizePolicy::Expanding
                 }
                 layout::Size::WrapContent => {
-                    self.widget.static_cast_mut().set_minimum_width(1);
-                    QPolicy::Minimum
+                    self.widget.static_upcast_mut().set_minimum_width(1);
+                    QSizePolicy::Minimum
                 }
                 layout::Size::Exact(value) => {
-                    self.widget.static_cast_mut().set_fixed_width(value as i32);
-                    QPolicy::Fixed
+                    self.widget.static_upcast_mut().set_fixed_width(value as i32);
+                    QSizePolicy::Fixed
                 }
             };
             let hpolicy = match control.layout.height {
                 layout::Size::MatchParent => {
-                    self.widget.static_cast_mut().set_minimum_height(1);
-                    QPolicy::Expanding
+                    self.widget.static_upcast_mut().set_minimum_height(1);
+                    QSizePolicy::Expanding
                 }
                 layout::Size::WrapContent => {
-                    self.widget.static_cast_mut().set_minimum_height(1);
-                    QPolicy::Minimum
+                    self.widget.static_upcast_mut().set_minimum_height(1);
+                    QSizePolicy::Minimum
                 }
                 layout::Size::Exact(value) => {
-                    self.widget.static_cast_mut().set_fixed_height(value as i32);
-                    QPolicy::Fixed
+                    self.widget.static_upcast_mut().set_fixed_height(value as i32);
+                    QSizePolicy::Fixed
                 }
             };
-            self.widget.static_cast_mut().set_size_policy((wpolicy, hpolicy));
+            self.widget.static_upcast_mut().set_size_policy_2a(wpolicy, hpolicy);
         }
     }
     pub fn invalidate(&mut self) -> bool {
-        let parent_widget = self.widget.as_mut().static_cast_mut().parent_widget();
+        let parent_widget = self.widget.static_upcast_mut().parent_widget();
         if parent_widget.is_null() {
             return false;
         }
-        if let Some(mparent) = cast_qobject_to_base_mut((unsafe { &mut *parent_widget }).static_cast_mut() as &mut QObject) {
+        if let Some(mparent) = cast_qobject_to_base_mut(&mut StaticUpcast::static_upcast_mut(parent_widget)) {
             let (pw, ph) = mparent.as_member().is_has_size().unwrap().size();
-            let this = cast_qobject_to_uimember_mut::<T>(self.widget.as_mut().static_cast_mut().static_cast_mut()).unwrap();
+            let this = cast_qobject_to_uimember_mut::<T>(&mut self.widget.static_upcast_mut().static_upcast_mut()).unwrap();
             let (_, _, changed) = this.measure(pw, ph);
             this.draw(None);
 
@@ -165,55 +164,53 @@ impl<T: controls::Control + Sized, Q: StaticCast<QWidget> + CppDeletable> QtCont
         true
     }
     pub fn set_visibility(&mut self, visibility: types::Visibility) {
-        let widget = self.widget.as_mut();
-        let mut sp_retain = widget.static_cast_mut().size_policy();
+        let widget = &mut self.widget;
+        let mut sp_retain = widget.static_upcast_mut().size_policy();
         sp_retain.set_retain_size_when_hidden(visibility != types::Visibility::Gone);
-        widget.static_cast_mut().set_size_policy(&sp_retain);
-        widget.static_cast_mut().set_visible(visibility == types::Visibility::Visible);
+        widget.static_upcast_mut().set_size_policy_1a(&sp_retain);
+        widget.static_upcast_mut().set_visible(visibility == types::Visibility::Visible);
     }
     pub fn parent(&self) -> Option<&dyn controls::Member> {
         unsafe {
-            let ptr = ((&*self.widget.as_ref().static_cast().parent_widget()).static_cast() as &QObject).property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
-            if ptr != 0 {
+            let ptr = self.widget.static_upcast().parent_widget().as_ptr().static_upcast::<QObject>().property(PROPERTY.as_ptr() as *const i8).as_raw_ptr();
+            if ptr.is_null() {
+                None
+            } else {
                 let m: &MemberBase = mem::transmute(ptr);
                 Some(m.as_member())
-            } else {
-                None
             }
         }
     }
     pub fn parent_mut(&mut self) -> Option<&mut dyn controls::Member> {
         unsafe {
-            let ptr = ((&mut *self.widget.as_mut().static_cast_mut().parent_widget()).static_cast_mut() as &mut QObject)
-                .property(PROPERTY.as_ptr() as *const i8)
-                .to_u_long_long();
-            if ptr != 0 {
+            let ptr = self.widget.static_upcast_mut().parent_widget().static_upcast_mut::<QObject>().property(PROPERTY.as_ptr() as *const i8).as_mut_raw_ptr();
+            if ptr.is_null() {
+                None
+            } else {
                 let m: &mut MemberBase = mem::transmute(ptr);
                 Some(m.as_member_mut())
-            } else {
-                None
             }
         }
     }
     pub fn root(&self) -> Option<&dyn controls::Member> {
         unsafe {
-            let ptr = ((&*self.widget.as_ref().static_cast().window()).static_cast() as &QObject).property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
-            if ptr != 0 {
+            let ptr = self.widget.static_upcast().window().as_ptr().static_upcast::<QObject>().property(PROPERTY.as_ptr() as *const i8).as_raw_ptr();
+            if ptr.is_null() {
+                None
+            } else {
                 let m: &MemberBase = mem::transmute(ptr);
                 Some(m.as_member())
-            } else {
-                None
             }
         }
     }
     pub fn root_mut(&mut self) -> Option<&mut dyn controls::Member> {
         unsafe {
-            let ptr = ((&mut *self.widget.as_mut().static_cast_mut().window()).static_cast_mut() as &mut QObject).property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
-            if ptr != 0 {
+            let ptr = self.widget.static_upcast_mut().window().static_upcast_mut::<QObject>().property(PROPERTY.as_ptr() as *const i8).as_mut_raw_ptr();
+            if ptr.is_null() {
+                None
+            } else {
                 let m: &mut MemberBase = mem::transmute(ptr);
                 Some(m.as_member_mut())
-            } else {
-                None
             }
         }
     }
@@ -236,11 +233,11 @@ where
     T: Sized,
 {
     unsafe {
-        let ptr = (&*object).property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
-        if ptr != 0 {
-            Some(::std::mem::transmute(ptr))
-        } else {
+        let ptr = (&*object).property(PROPERTY.as_ptr() as *const i8).as_mut_raw_ptr();
+        if ptr.is_null() {
             None
+        } else {
+            Some(::std::mem::transmute(ptr))
         }
     }
 }
@@ -249,11 +246,11 @@ where
     T: Sized,
 {
     unsafe {
-        let ptr = (&*object).property(PROPERTY.as_ptr() as *const i8).to_u_long_long();
-        if ptr != 0 {
-            Some(::std::mem::transmute(ptr))
-        } else {
+        let ptr = (&*object).property(PROPERTY.as_ptr() as *const i8).as_raw_ptr();
+        if ptr.is_null() {
             None
+        } else {
+            Some(::std::mem::transmute(ptr))
         }
     }
 }
@@ -294,22 +291,22 @@ pub fn qorientation_to_orientation(o: QOrientation) -> layout::Orientation {
     let raw = src.to_rgba().into_raw();
     unsafe { QImage::new_unsafe((raw.as_ptr(), w as i32, h as i32, Format::FormatRGBA8888)) }
 }*/
-pub fn append_item<T: controls::Member>(menu: &mut QMenu, label: String, action: callbacks::Action, storage: &mut Vec<(callbacks::Action, SlotNoArgs<'static>)>, slot_spawn: fn(id: usize, selfptr: *mut T) -> SlotNoArgs<'static>, selfptr: *mut T) {
+pub fn append_item<T: controls::Member>(menu: &mut QMenu, label: String, action: callbacks::Action, storage: &mut Vec<(callbacks::Action, Slot<'static>)>, slot_spawn: fn(id: usize, selfptr: *mut T) -> Slot<'static>, selfptr: *mut T) {
     let id = storage.len();
     let action = (action, slot_spawn(id, selfptr));
-    let qaction = unsafe { &mut *menu.add_action(&QString::from_std_str(label)) };
-    qaction.signals().triggered().connect(&action.1);
+    let qaction = unsafe { &mut *menu.add_action_q_string(QString::from_std_str(label).as_ref()) };
+    qaction.triggered().connect(&action.1);
     storage.push(action);
 }
-pub fn append_level<T: controls::Member>(menu: &mut QMenu, label: String, items: Vec<types::MenuItem>, storage: &mut Vec<(callbacks::Action, SlotNoArgs<'static>)>, slot_spawn: fn(id: usize, selfptr: *mut T) -> SlotNoArgs<'static>, selfptr: *mut T) {
-    let submenu = menu.add_menu(&QString::from_std_str(label));
+pub fn append_level<T: controls::Member>(menu: &mut QMenu, label: String, items: Vec<types::MenuItem>, storage: &mut Vec<(callbacks::Action, Slot<'static>)>, slot_spawn: fn(id: usize, selfptr: *mut T) -> Slot<'static>, selfptr: *mut T) {
+    let submenu = menu.add_menu_q_string(QString::from_std_str(label).as_ref());
     make_menu(unsafe { &mut *submenu }, items, storage, slot_spawn, selfptr);
 }
-pub fn make_menu<T: controls::Member>(menu: &mut QMenu, mut items: Vec<types::MenuItem>, storage: &mut Vec<(callbacks::Action, SlotNoArgs<'static>)>, slot_spawn: fn(id: usize, selfptr: *mut T) -> SlotNoArgs<'static>, selfptr: *mut T) {
+pub fn make_menu<T: controls::Member>(menu: &mut QMenu, mut items: Vec<types::MenuItem>, storage: &mut Vec<(callbacks::Action, Slot<'static>)>, slot_spawn: fn(id: usize, selfptr: *mut T) -> Slot<'static>, selfptr: *mut T) {
     let mut options = Vec::new();
     let mut help = Vec::new();
 
-    let make_special = |menu: &mut QMenu, mut special: Vec<types::MenuItem>, storage: &mut Vec<(callbacks::Action, SlotNoArgs<'static>)>, slot_spawn: fn(id: usize, selfptr: *mut T) -> SlotNoArgs<'static>, selfptr: *mut T| {
+    let make_special = |menu: &mut QMenu, mut special: Vec<types::MenuItem>, storage: &mut Vec<(callbacks::Action, Slot<'static>)>, slot_spawn: fn(id: usize, selfptr: *mut T) -> Slot<'static>, selfptr: *mut T| {
         for item in special.drain(..) {
             match item {
                 types::MenuItem::Action(label, action, _) => {

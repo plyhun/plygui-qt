@@ -1,9 +1,9 @@
 use crate::common::{self, *};
 
-use qt_core::list::ListCInt;
-use qt_core::slots::SlotCInt;
-use qt_widgets::box_layout::BoxLayout as QBoxLayout;
-use qt_widgets::splitter::Splitter as QSplitter;
+use qt_core::QListOfInt;
+use qt_core::SlotOfInt;
+use qt_widgets::QBoxLayout;
+use qt_widgets::QSplitter;
 
 pub type Splitted = Member<Control<MultiContainer<QtSplitted>>>;
 
@@ -13,7 +13,7 @@ pub struct QtSplitted {
     splitter: f32,
     first: Box<dyn controls::Control>,
     second: Box<dyn controls::Control>,
-    splitter_moved: SlotCInt<'static>,
+    splitter_moved: SlotOfInt<'static>,
 }
 
 impl SplittedInner for QtSplitted {
@@ -31,7 +31,7 @@ impl SplittedInner for QtSplitted {
                         splitter: defaults::SPLITTED_POSITION,
                         first: first,
                         second: second,
-                        splitter_moved: SlotCInt::new(move |_| {}),
+                        splitter_moved: SlotOfInt::new(move |_| {}),
                     },
                     (),
                 ),
@@ -94,7 +94,7 @@ impl QtSplitted {
     }
     fn update_splitter(&mut self, control: &mut ControlBase) {
         let (first, second) = self.children_sizes(control);
-        let mut list = ListCInt::new(());
+        let mut list = QListOfInt::new(());
         list.append(&(first as i32));
         list.append(&(second as i32));
         self.base.widget.as_mut().set_sizes(&list);
@@ -387,7 +387,7 @@ impl MultiContainerInner for QtSplitted {
         2
     }
     fn set_child_to(&mut self, _base: &mut MemberBase, index: usize, mut child: Box<dyn controls::Control>) -> Option<Box<dyn controls::Control>> {
-        use qt_widgets::frame::Frame as QFrame;
+        use qt_widgets::QFrame;
 
         let added = match index {
             0 => &mut self.first,
@@ -460,9 +460,7 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
     match event.type_() {
         QEventType::Resize => {
             if let Some(this) = cast_qobject_to_uimember_mut::<Splitted>(object) {
-                use qt_core::cpp_utils::UnsafeStaticCast;
-            	
-                let size = unsafe { event.static_cast_mut() as &mut ResizeEvent };
+                let size = unsafe { event.static_cast_mut() as &mut QResizeEvent };
                 let size = (
                 	utils::coord_to_size(size.size().width()), 
                 	utils::coord_to_size(size.size().height())

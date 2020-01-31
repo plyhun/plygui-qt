@@ -1,7 +1,7 @@
 use crate::common::{self, *};
 
-use qt_widgets::application::Application as QApplication;
-use qt_widgets::main_window::MainWindow as QMainWindow;
+use qt_widgets::QApplication;
+use qt_widgets::QMainWindow;
 
 use std::borrow::Cow;
 
@@ -12,7 +12,7 @@ pub struct QtWindow {
     window: CppBox<QMainWindow>,
     child: Option<Box<dyn controls::Control>>,
     filter: CppBox<CustomEventFilter>,
-    menu: Vec<(callbacks::Action, SlotNoArgs<'static>)>,
+    menu: Vec<(callbacks::Action, Slot<'static>)>,
     on_close: Option<callbacks::OnClose>,
     skip_callbacks: bool,
 }
@@ -78,7 +78,7 @@ impl WindowInner for QtWindow {
                     (screen.width(), screen.height())
                 }
             });
-            window.window.set_size_policy((QPolicy::Ignored, QPolicy::Ignored));
+            window.window.set_size_policy((QSizePolicy::Ignored, QSizePolicy::Ignored));
             window.window.set_minimum_size((1, 1));
             unsafe {
                 let filter: *mut QObject = window.filter.static_cast_mut() as *mut QObject;
@@ -88,8 +88,8 @@ impl WindowInner for QtWindow {
             if let Some(mut items) = menu {
                 let menu_bar = unsafe { &mut *window.window.menu_bar() };
 
-                fn slot_spawn(id: usize, selfptr: *mut Window) -> SlotNoArgs<'static> {
-                    SlotNoArgs::new(move || {
+                fn slot_spawn(id: usize, selfptr: *mut Window) -> Slot<'static> {
+                    Slot::new(move || {
                         let window = unsafe { &mut *selfptr };
                         if let Some((a, _)) = window.as_inner_mut().as_inner_mut().as_inner_mut().menu.get_mut(id) {
                             let window = unsafe { &mut *selfptr };

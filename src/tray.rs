@@ -1,9 +1,9 @@
 use crate::common::{self, *};
 
-use qt_widgets::application::Application as QApplication;
-use qt_widgets::style::StandardPixmap;
-use qt_widgets::system_tray_icon::SystemTrayIcon as QSystemTrayIcon;
-use qt_gui::icon::Icon as QIcon;
+use qt_widgets::QApplication;
+use qt_widgets::q_style::StandardPixmap;
+use qt_widgets::QSystemTrayIcon;
+use qt_gui::QIcon;
 
 use std::borrow::Cow;
 
@@ -13,7 +13,7 @@ pub type Tray = Member<QtTray>;
 pub struct QtTray {
     tray: CppBox<QSystemTrayIcon>,
     filter: CppBox<CustomEventFilter>,
-    menu: Option<(CppBox<QMenu>, Vec<(callbacks::Action, SlotNoArgs<'static>)>)>,
+    menu: Option<(CppBox<QMenu>, Vec<(callbacks::Action, Slot<'static>)>)>,
     on_close: Option<callbacks::OnClose>,
     skip_callbacks: bool,
 }
@@ -109,8 +109,8 @@ impl TrayInner for QtTray {
             if let Some(items) = menu {
                 tray.menu = Some((QMenu::new(()), Vec::new()));
                 if let Some((ref mut context_menu, ref mut storage)) = tray.menu {
-                    fn slot_spawn(id: usize, selfptr: *mut Tray) -> SlotNoArgs<'static> {
-                        SlotNoArgs::new(move || {
+                    fn slot_spawn(id: usize, selfptr: *mut Tray) -> Slot<'static> {
+                        Slot::new(move || {
                             let tray = unsafe { &mut *selfptr };
                             if let Some((_, ref mut menu)) = tray.as_inner_mut().menu {
                                 if let Some((a, _)) = menu.get_mut(id) {

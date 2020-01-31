@@ -1,9 +1,9 @@
 use crate::common::{self, *};
 
-use qt_widgets::box_layout::{BoxLayout as QBoxLayout, Direction};
-use qt_widgets::layout::Layout;
-use qt_widgets::spacer_item::SpacerItem;
-use qt_widgets::frame::Frame as QFrame;
+use qt_widgets::{QBoxLayout, q_box_layout::Direction as QDirection};
+use qt_widgets::QLayout;
+use qt_widgets::QSpacerItem;
+use qt_widgets::QFrame;
 
 pub type LinearLayout = Member<Control<MultiContainer<QtLinearLayout>>>;
 
@@ -32,8 +32,8 @@ impl LinearLayoutInner for QtLinearLayout {
         ));
         unsafe {
             let ll1 = ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget.as_mut() as *mut QFrame;
-            let layout: &mut Layout = ll.as_inner_mut().as_inner_mut().as_inner_mut().layout.static_cast_mut();
-            let layout = layout as *mut Layout;
+            let layout: &mut QLayout = ll.as_inner_mut().as_inner_mut().as_inner_mut().layout.static_cast_mut();
+            let layout = layout as *mut QLayout;
             (&mut *ll1).set_layout(layout);
 
             let ptr = ll.as_ref() as *const _ as u64;
@@ -308,12 +308,12 @@ impl MultiContainerInner for QtLinearLayout {
                     layout::Orientation::Vertical => child.layout_height() == layout::Size::MatchParent,
                 }).is_none() {
             let stretch = self.layout.item_at(self.layout.count()-1);
-            if stretch.is_null() || (unsafe { &*stretch }.dynamic_cast() as Option<&SpacerItem>).is_none() {
+            if stretch.is_null() || (unsafe { &*stretch }.dynamic_cast() as Option<&QSpacerItem>).is_none() {
                 self.layout.add_stretch(0);
             }
         } else {
             let stretch = self.layout.item_at(self.layout.count()-1);
-            if !stretch.is_null() && (unsafe { &*stretch }.dynamic_cast() as Option<&SpacerItem>).is_some() {
+            if !stretch.is_null() && (unsafe { &*stretch }.dynamic_cast() as Option<&QSpacerItem>).is_some() {
                 unsafe { self.layout.remove_item(stretch) };
             }
         }
@@ -332,12 +332,12 @@ impl MultiContainerInner for QtLinearLayout {
                         layout::Orientation::Vertical => child.layout_height() == layout::Size::MatchParent,
                     }).is_none() {
                 let stretch = self.layout.item_at(self.layout.count()-1);
-                if stretch.is_null() || (unsafe { &*stretch }.dynamic_cast() as Option<&SpacerItem>).is_none() {
+                if stretch.is_null() || (unsafe { &*stretch }.dynamic_cast() as Option<&QSpacerItem>).is_none() {
                     self.layout.add_stretch(0);
                 }
             } else {
                 let stretch = self.layout.item_at(self.layout.count()-1);
-                if !stretch.is_null() && (unsafe { &*stretch }.dynamic_cast() as Option<&SpacerItem>).is_some() {
+                if !stretch.is_null() && (unsafe { &*stretch }.dynamic_cast() as Option<&QSpacerItem>).is_some() {
                     unsafe { self.layout.remove_item(stretch) };
                 }
             }
@@ -360,17 +360,17 @@ impl MultiContainerInner for QtLinearLayout {
     }
 }
 
-fn box_direction_to_orientation(a: Direction) -> layout::Orientation {
+fn box_direction_to_orientation(a: QDirection) -> layout::Orientation {
     match a {
-        Direction::TopToBottom => layout::Orientation::Vertical,
-        Direction::LeftToRight => layout::Orientation::Horizontal,
+        QDirection::TopToBottom => layout::Orientation::Vertical,
+        QDirection::LeftToRight => layout::Orientation::Horizontal,
         _ => unreachable!(),
     }
 }
-fn orientation_to_box_direction(a: layout::Orientation) -> Direction {
+fn orientation_to_box_direction(a: layout::Orientation) -> QDirection {
     match a {
-        layout::Orientation::Horizontal => Direction::LeftToRight,
-        layout::Orientation::Vertical => Direction::TopToBottom,
+        layout::Orientation::Horizontal => QDirection::LeftToRight,
+        layout::Orientation::Vertical => QDirection::TopToBottom,
     }
 }
 
@@ -385,9 +385,7 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
     match event.type_() {
         QEventType::Resize => {
             if let Some(this) = cast_qobject_to_uimember_mut::<LinearLayout>(object) {
-                use qt_core::cpp_utils::UnsafeStaticCast;
-            	
-                let size = unsafe { event.static_cast_mut() as &mut ResizeEvent };
+                let size = unsafe { event.static_cast_mut() as &mut QResizeEvent };
                 let size = (
                 	utils::coord_to_size(size.size().width()), 
                 	utils::coord_to_size(size.size().height())

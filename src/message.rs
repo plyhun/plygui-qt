@@ -1,7 +1,8 @@
 use crate::common::{self, *};
 
-use qt_widgets::message_box::{ButtonRole, Icon, MessageBox as QMessageBox};
-use qt_core::qt::WindowModality;
+use qt_widgets::q_message_box::{ButtonRole, Icon};
+use qt_widgets::QMessageBox;
+use qt_core::WindowModality;
 
 use std::borrow::Cow;
 

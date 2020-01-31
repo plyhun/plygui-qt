@@ -1,8 +1,8 @@
 use crate::common::{self, *};
 
-use qt_core::qt::{AlignmentFlag, AspectRatioMode};
-use qt_core::rect::Rect as QRect;
-use qt_widgets::label::Label as QLabel;
+use qt_core::{AlignmentFlag, AspectRatioMode};
+use qt_core::QRect;
+use qt_widgets::QLabel;
 
 pub type Image = Member<Control<QtImage>>;
 
@@ -35,7 +35,7 @@ impl ImageInner for QtImage {
             let qo: &mut QObject = i.as_inner_mut().as_inner_mut().base.widget.static_cast_mut();
             qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::new0(ptr));
         }
-        i.as_inner_mut().as_inner_mut().base.widget.set_alignment(Flags::from_enum(AlignmentFlag::Center));
+        i.as_inner_mut().as_inner_mut().base.widget.set_alignment(AlignmentFlag::Center);
         i
     }
     fn set_scale(&mut self, _: &mut MemberBase, policy: types::ImageScalePolicy) {
@@ -164,9 +164,7 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
     match event.type_() {
         QEventType::Resize => {
             if let Some(this) = cast_qobject_to_uimember_mut::<Image>(object) {
-                use qt_core::cpp_utils::UnsafeStaticCast;
-            	
-                let size = unsafe { event.static_cast_mut() as &mut ResizeEvent };
+                let size = unsafe { event.static_cast_mut() as &mut QResizeEvent };
                 let size = (
                 	utils::coord_to_size(size.size().width()), 
                 	utils::coord_to_size(size.size().height())

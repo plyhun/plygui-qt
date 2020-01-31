@@ -1,10 +1,10 @@
 use crate::common::{self, *};
 
-use qt_core::connection::Signal;
-use qt_core::rect::Rect as QRect;
-use qt_core::slots::SlotNoArgs;
-use qt_gui::font_metrics::FontMetrics as QFontMetrics;
-use qt_widgets::push_button::PushButton as QPushButton;
+use qt_core::Signal;
+use qt_core::QRect;
+use qt_core::Slot;
+use qt_gui::QFontMetrics;
+use qt_widgets::QPushButton;
 
 use std::borrow::Cow;
 
@@ -14,19 +14,19 @@ pub type Button = Member<Control<QtButton>>;
 pub struct QtButton {
     base: common::QtControlBase<Button, QPushButton>,
     skip_callbacks: bool,
-    h_left_clicked: (bool, SlotNoArgs<'static>),
+    h_left_clicked: (bool, Slot<'static>),
 }
 
 impl HasLabelInner for QtButton {
     fn label(&self, _: &MemberBase) -> Cow<str> {
         let name = self.base.widget.as_ref().text().to_utf8();
         unsafe {
-            let bytes = std::slice::from_raw_parts(name.const_data() as *const u8, name.count(()) as usize);
+            let bytes = std::slice::from_raw_parts(name.const_data().as_raw_ptr() as *const u8, name.count() as usize);
             Cow::Owned(std::str::from_utf8_unchecked(bytes).to_owned())
         }
     }
     fn set_label(&mut self, _: &mut MemberBase, label: Cow<str>) {
-        self.base.widget.as_mut().set_text(&QString::from_std_str(&label));
+        self.base.widget.set_text(&QString::from_std_str(&label));
     }
 }
 
@@ -35,7 +35,7 @@ impl ClickableInner for QtButton {
         self.h_left_clicked.0 = cb.is_some();
         if cb.is_some() {
             let mut cb = cb.unwrap();
-            let ptr = self.base.widget.as_mut().static_cast_mut() as *mut QObject;
+            let ptr = self.base.widget.static_upcast_mut::<QObject>().as_mut_raw_ptr();
             self.h_left_clicked.1.set(move || unsafe {
                 let button = cast_qobject_to_uimember_mut::<Button>(&mut *ptr).unwrap();
                 if !button.as_inner().as_inner().skip_callbacks {
@@ -57,9 +57,9 @@ impl ButtonInner for QtButton {
         let mut btn = Box::new(Member::with_inner(
             Control::with_inner(
                 QtButton {
-                    base: common::QtControlBase::with_params(QPushButton::new(&QString::from_std_str(label)), event_handler),
+                    base: common::QtControlBase::with_params(QPushButton::from_q_string(&QString::from_std_str(label)), event_handler),
                     skip_callbacks: false,
-                    h_left_clicked: (false, SlotNoArgs::new(move || {})),
+                    h_left_clicked: (false, Slot::new(move || {})),
                 },
                 (),
             ),
@@ -67,9 +67,9 @@ impl ButtonInner for QtButton {
         ));
         unsafe {
             let ptr = btn.as_ref() as *const _ as u64;
-            btn.as_inner().as_inner().base.widget.signals().released().connect(&btn.as_inner().as_inner().h_left_clicked.1);
-            let qo: &mut QObject = btn.as_inner_mut().as_inner_mut().base.widget.static_cast_mut();
-            qo.set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::new0(ptr));
+            btn.as_inner().as_inner().base.widget.released().connect(&btn.as_inner().as_inner().h_left_clicked.1);
+            let qo: &mut QObject = &mut btn.as_inner_mut().as_inner_mut().base.widget.as_mut_ref().static_upcast_mut();
+            qo.set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
         }
         btn
     }
@@ -115,7 +115,7 @@ impl HasNativeIdInner for QtButton {
     type Id = common::QtId;
 
     unsafe fn native_id(&self) -> Self::Id {
-        QtId::from(self.base.widget.static_cast() as *const QObject as *mut QObject)
+        QtId::from(self.base.widget.static_upcast::<QObject>().as_raw_ptr() as *mut QObject)
     }
 }
 impl HasVisibilityInner for QtButton {
@@ -126,7 +126,7 @@ impl HasVisibilityInner for QtButton {
 }
 impl HasSizeInner for QtButton {
     fn on_size_set(&mut self, _: &mut MemberBase, (width, height): (u16, u16)) -> bool {
-        self.base.widget.set_fixed_size((width as i32, height as i32));
+        self.base.widget.set_fixed_size_2a(width as i32, height as i32);
         true
     }
 }
@@ -143,7 +143,7 @@ impl Drawable for QtButton {
             _ => {
                 let font = self.base.widget.as_ref().font();
 
-                let mut label_size = QRect::new((0, 0, 0, 0));
+                let mut label_size = QRect::from_4_int(0, 0, 0, 0);
                 let w = match control.layout.width {
                     layout::Size::MatchParent => parent_width as i32,
                     layout::Size::Exact(w) => w as i32,
@@ -186,9 +186,9 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
     match event.type_() {
         QEventType::Resize => {
             if let Some(this) = cast_qobject_to_uimember_mut::<Button>(object) {
-                use qt_core::cpp_utils::UnsafeStaticCast;
+                //use qt_core::cpp_utils::UnsafeStaticCast;
             	
-                let size = unsafe { event.static_cast_mut() as &mut ResizeEvent };
+                let size = unsafe { event.static_upcast_mut() as &mut QResizeEvent };
                 let size = (
                 	utils::coord_to_size(size.size().width()), 
                 	utils::coord_to_size(size.size().height())

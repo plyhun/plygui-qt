@@ -2,12 +2,11 @@ use crate::common::{self, *};
 use crate::tray::Tray;
 use crate::window::Window;
 
-use qt_core::core_application::{CoreApplication as QCoreApplication, CoreApplicationArgs as QCoreApplicationArgs};
-use qt_core::cpp_utils::CppBox;
-use qt_core::timer::Timer;
-use qt_core::string::String;
-use qt_gui::gui_application::GuiApplication as QGuiApplication;
-use qt_widgets::application::Application as QApplication;
+use qt_core::{QCoreApplication, QCoreApplicationArgs};
+use qt_core::QTimer;
+use qt_core::QString;
+use qt_gui::QGuiApplication;
+use qt_widgets::QApplication;
 
 use plygui_api::development;
 use plygui_api::{controls, types};
@@ -22,8 +21,8 @@ pub type Application = development::Application<QtApplication>;
 pub struct QtApplication {
     _args: QCoreApplicationArgs,
     inner: CppBox<QApplication>,
-    timer: CppBox<Timer>,
-    pub(crate) queue: SlotNoArgs<'static>,
+    timer: CppBox<QTimer>,
+    pub(crate) queue: Slot<'static>,
     pub(crate) windows: Vec<QtId>,
     pub(crate) trays: Vec<QtId>,
 }
@@ -31,7 +30,7 @@ pub struct QtApplication {
 impl QtApplication {
     fn maybe_exit(&mut self) -> bool {
         if self.windows.len() < 1 && self.trays.len() < 1 {
-            QCoreApplication::exit(0);
+            QCoreApplication::quit();
             true
         } else {
             false
@@ -48,8 +47,9 @@ impl ApplicationInner for QtApplication {
 		self.timer.set_interval(value as i32);
 	}
     fn get() -> Box<Application> {
-        let mut args = QCoreApplicationArgs::from_real();
-        let inner = unsafe { QApplication::new(args.get()) };
+        let args = QCoreApplicationArgs::new();
+        let (arg1, arg2) = args.get();
+        let inner = unsafe { QApplication::new_2a(MutRef::from_raw(arg1).unwrap(), arg2) };
         QGuiApplication::set_quit_on_last_window_closed(false);
         //QCoreApplication::set_application_name(&String::from_std_str(name));
         let mut app = Box::new(development::Application::with_inner(
@@ -57,8 +57,8 @@ impl ApplicationInner for QtApplication {
                 _args: args,
                 inner: inner,
                 windows: Vec::with_capacity(1),
-                timer: Timer::new(),
-                queue: SlotNoArgs::new(move || {}),
+                timer: QTimer::new_0a(),
+                queue: Slot::new(move || {}),
                 trays: vec![],
             },
             (),
@@ -67,7 +67,7 @@ impl ApplicationInner for QtApplication {
             let selfptr = app.as_ref() as *const _ as u64;
             let app = app.as_inner_mut();
             app.set_frame_sleep(DEFAULT_FRAME_SLEEP_MS);
-            app.queue = SlotNoArgs::new(move || {
+            app.queue = Slot::new(move || {
                 let mut frame_callbacks = 0;
                 while frame_callbacks < defaults::MAX_FRAME_CALLBACKS {
                     let w = unsafe { (&mut *(selfptr as *mut Application)).base_mut() };
@@ -85,8 +85,8 @@ impl ApplicationInner for QtApplication {
                     }
                 }
             });
-            app.timer.signals().timeout().connect(&app.queue);
-            app.timer.start(());
+            app.timer.timeout().connect(&app.queue);
+            app.timer.slot_start();
         }
         app
     }
@@ -115,7 +115,7 @@ impl ApplicationInner for QtApplication {
     fn name<'a>(&'a self) -> Cow<'a, str> {
         let name = QCoreApplication::application_name().to_utf8();
         unsafe {
-            let bytes = std::slice::from_raw_parts(name.const_data() as *const u8, name.count(()) as usize);
+            let bytes = std::slice::from_raw_parts(name.const_data().as_raw_ptr() as *const u8, name.count() as usize);
             Cow::Owned(std::str::from_utf8_unchecked(bytes).to_owned())
         }
     }
@@ -263,7 +263,7 @@ impl HasNativeIdInner for QtApplication {
     type Id = common::QtId;
 
     unsafe fn native_id(&self) -> Self::Id {
-        QtId::from(self.inner.static_cast() as *const QObject as *mut QObject)
+        QtId::from(self.inner.static_upcast::<QObject>().as_raw_ptr() as *const QObject as *mut QObject)
     }
 }
 impl Drop for QtApplication {
