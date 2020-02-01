@@ -23,14 +23,14 @@ impl QtList {
         let mut item = adapter.adapter.spawn_item_view(i, this);
         
         item.on_added_to_container(this, 0, 0, utils::coord_to_size(pw as i32) as u16, utils::coord_to_size(ph as i32) as u16);
-        self.items.insert(i, (item, QListWidgetItem::new(())));
+        self.items.insert(i, (item, unsafe { QListWidgetItem::new() }));
         let (item, witem) = self.items.get_mut(i).unwrap();
-        let widget = common::cast_control_to_qwidget_mut(item.as_mut());        
+        let mut widget = unsafe { MutPtr::from_raw(common::cast_control_to_qwidget_mut(item.as_mut())) };        
         
         unsafe { 
             witem.set_size_hint(&widget.size_hint());
-            self.base.widget.insert_item_unsafe(i as i32, witem.as_mut_ptr()); 
             self.base.widget.set_item_widget(witem.as_mut_ptr(), widget);
+            self.base.widget.insert_item_int_q_list_widget_item(i as i32, witem); 
             widget.show();
         }
     }
@@ -38,8 +38,10 @@ impl QtList {
         let this: &mut List = unsafe { utils::base_to_impl_mut(base) };
         self.items.remove(i).0.on_removed_from_container(this); 
         
-        let item = self.base.widget.item(i as i32);
-        unsafe { self.base.widget.remove_item_widget(item); }
+        unsafe { 
+            let item = self.base.widget.item(i as i32);
+            self.base.widget.remove_item_widget(item); 
+        }
     }
 }
 
@@ -62,7 +64,7 @@ impl AdapterViewInner for QtList {
             Control::with_inner(
                 Adapter::with_inner(
                     QtList {
-                        base: common::QtControlBase::with_params(QListWidget::new(), event_handler),
+                        base: common::QtControlBase::with_params(unsafe { QListWidget::new_0a() }, event_handler),
                         items: Vec::new(),
                         h_left_clicked: Slot::new(move || {}), // dummy
                     },
@@ -74,7 +76,7 @@ impl AdapterViewInner for QtList {
         ));
         unsafe {
             let ptr = ll.as_ref() as *const _ as u64;
-            let obj = ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget.static_cast_mut() as *mut QObject;
+            let obj = ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget.static_upcast_mut::<QObject>().as_mut_raw_ptr();
             ll.as_inner_mut().as_inner_mut().as_inner_mut().h_left_clicked = Slot::new(move || {
                 let this = cast_qobject_to_uimember_mut::<List>(&mut *obj).unwrap();
                 let clicked = this.as_inner().as_inner().as_inner().base.widget.current_item();
@@ -86,9 +88,9 @@ impl AdapterViewInner for QtList {
                     (cb.as_mut())(this, i as usize, clicked.as_mut());
                 }
             });
-            ll.as_inner().as_inner().as_inner().base.widget.signals().item_clicked().connect(&ll.as_inner().as_inner().as_inner().h_left_clicked);
-            let qo: &mut QObject = ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget.static_cast_mut();
-            qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::new0(ptr));
+            ll.as_inner().as_inner().as_inner().base.widget.item_clicked().connect(&ll.as_inner().as_inner().as_inner().h_left_clicked);
+            let mut qo = ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget.static_upcast_mut::<QObject>();
+            qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
         }
         ll
     }
@@ -96,15 +98,13 @@ impl AdapterViewInner for QtList {
 
 impl Drop for QtList {
     fn drop(&mut self) {
-        if !self.base.widget.is_null() {
-            let qo = self.base.widget.as_mut().static_cast_mut() as *mut QObject;
-            if let Some(self2) = common::cast_qobject_to_uimember_mut::<List>(unsafe { &mut *qo }) {
-                for (mut child,_) in self.items.drain(..) {
-                    child.on_removed_from_container(self2);
-                }
+        let mut qo = unsafe { self.base.widget.static_upcast_mut::<QObject>() };
+        if let Some(self2) = common::cast_qobject_to_uimember_mut::<List>(&mut qo) {
+            for (mut child,_) in self.items.drain(..) {
+                child.on_removed_from_container(self2);
             }
-            //self.layout = CppBox::default();
         }
+        //self.layout = CppBox::default();
     }
 }
 
@@ -112,7 +112,7 @@ impl HasNativeIdInner for QtList {
     type Id = common::QtId;
 
     unsafe fn native_id(&self) -> Self::Id {
-        QtId::from(self.base.widget.static_cast() as *const QObject as *mut QObject)
+        QtId::from(self.base.widget.static_upcast::<QObject>().as_raw_ptr() as *mut QObject)
     }
 }
 impl HasVisibilityInner for QtList {
@@ -123,7 +123,7 @@ impl HasVisibilityInner for QtList {
 }
 impl HasSizeInner for QtList {
     fn on_size_set(&mut self, _: &mut MemberBase, (width, height): (u16, u16)) -> bool {
-        self.base.widget.set_fixed_size((width as i32, height as i32));
+        unsafe { self.base.widget.set_fixed_size_2a(width as i32, height as i32); }
         true
     }
 }
@@ -174,8 +174,10 @@ impl HasLayoutInner for QtList {
         self.base.invalidate();
     }
     fn layout_margin(&self, _member: &MemberBase) -> layout::BoundarySize {
-        let margins = self.base.widget.contents_margins();
-        layout::BoundarySize::Distinct(margins.left(), margins.top(), margins.right(), margins.bottom())
+        unsafe {
+            let margins = self.base.widget.contents_margins();
+            layout::BoundarySize::Distinct(margins.left(), margins.top(), margins.right(), margins.bottom())
+        }
     }
 }
 
@@ -273,14 +275,17 @@ impl ContainerInner for QtList {
 default_impls_as!(List);
 
 fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
-    match event.type_() {
+    match unsafe { event.type_() } {
         QEventType::Resize => {
             if let Some(this) = cast_qobject_to_uimember_mut::<List>(object) {
-                let size = unsafe { event.static_cast_mut() as &mut QResizeEvent };
-                let size = (
-                	utils::coord_to_size(size.size().width()), 
-                	utils::coord_to_size(size.size().height())
-                );
+                let size = unsafe { 
+                    let size = MutRef::from_raw_ref(event).static_downcast_mut::<QResizeEvent>();
+                    let size = (
+                    	utils::coord_to_size(size.size().width()), 
+                    	utils::coord_to_size(size.size().height())
+                    );
+                    size
+                };
                 this.as_inner_mut().base_mut().measured = size;
                 this.call_on_size(size.0, size.1);
             }
@@ -288,7 +293,7 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
         QEventType::Destroy => {
             if let Some(ll) = cast_qobject_to_uimember_mut::<List>(object) {
                 unsafe {
-                    ptr::write(&mut ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget, CppBox::new(ptr::null_mut()));
+                    ptr::write(&mut ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget, CppBox::new(MutPtr::null()).unwrap());
                 }
             }
         }

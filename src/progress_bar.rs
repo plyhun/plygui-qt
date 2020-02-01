@@ -18,18 +18,18 @@ impl ProgressBarInner for QtProgressBar {
         let mut pb = Box::new(Member::with_inner(
             Control::with_inner(
                 QtProgressBar {
-                    base: common::QtControlBase::with_params(QProgressBar::new(), event_handler),
+                    base: common::QtControlBase::with_params(unsafe { QProgressBar::new_0a() }, event_handler),
                 },
                 (),
             ),
             MemberFunctions::new(_as_any, _as_any_mut, _as_member, _as_member_mut),
         ));
-        pb.as_inner_mut().as_inner_mut().base.widget.as_mut().set_minimum(0);
-        pb.as_inner_mut().as_inner_mut().base.widget.as_mut().set_text_visible(false);
         unsafe {
+            pb.as_inner_mut().as_inner_mut().base.widget.set_minimum(0);
+            pb.as_inner_mut().as_inner_mut().base.widget.set_text_visible(false);
             let ptr = pb.as_ref() as *const _ as u64;
-            let qo: &mut QObject = pb.as_inner_mut().as_inner_mut().base.widget.static_cast_mut();
-            qo.set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::new0(ptr));
+            let mut qo = pb.as_inner_mut().as_inner_mut().base.widget.as_mut_ref().static_upcast_mut::<QObject>();
+            qo.set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
         }
         pb.set_progress(arg);
         pb
@@ -38,36 +38,40 @@ impl ProgressBarInner for QtProgressBar {
 
 impl HasProgressInner for QtProgressBar {
     fn progress(&self, _base: &MemberBase) -> types::Progress {
-	    let progress_bar = self.base.widget.as_ref();
-        if progress_bar.inverted_appearance() {
-            return types::Progress::None;
-        }
-        if progress_bar.maximum() < 1 {
-            return types::Progress::Undefined;
-        }
-        types::Progress::Value(
-            progress_bar.value() as u32,
-            progress_bar.maximum() as u32
-        )
+	    unsafe {
+	        let progress_bar = self.base.widget.as_ref();
+            if progress_bar.inverted_appearance() {
+                return types::Progress::None;
+            }
+            if progress_bar.maximum() < 1 {
+                return types::Progress::Undefined;
+            }
+            types::Progress::Value(
+                progress_bar.value() as u32,
+                progress_bar.maximum() as u32
+            )
+	    }
     }
 	fn set_progress(&mut self, _base: &mut MemberBase, arg: types::Progress) {
-	    let progress_bar = self.base.widget.as_mut();
-        match arg {
-        	types::Progress::Value(current, total) => {
-        	    let total = if total > 0 { 0 } else { 1 };
-        	    progress_bar.set_inverted_appearance(false);
-        	    progress_bar.set_range(0, total);
-        		progress_bar.set_value(current as i32);
-        	},
-        	types::Progress::Undefined => {
-        	    progress_bar.set_inverted_appearance(false);
-        	    progress_bar.set_range(0, 0);
-        	},
-        	types::Progress::None => {
-        	    progress_bar.set_inverted_appearance(true);
-        	    progress_bar.set_range(0, 0);
-        	}
-        }
+	    unsafe {
+	        let mut progress_bar = self.base.widget.as_mut_ref();
+            match arg {
+            	types::Progress::Value(current, total) => {
+            	    let total = if total > 0 { 0 } else { 1 };
+            	    progress_bar.set_inverted_appearance(false);
+            	    progress_bar.set_range(0, total);
+            		progress_bar.set_value(current as i32);
+            	},
+            	types::Progress::Undefined => {
+            	    progress_bar.set_inverted_appearance(false);
+            	    progress_bar.set_range(0, 0);
+            	},
+            	types::Progress::None => {
+            	    progress_bar.set_inverted_appearance(true);
+            	    progress_bar.set_range(0, 0);
+            	}
+            }
+	    }
 	}
 }
 
@@ -111,7 +115,7 @@ impl HasNativeIdInner for QtProgressBar {
     type Id = common::QtId;
 
     unsafe fn native_id(&self) -> Self::Id {
-        QtId::from(self.base.widget.static_cast() as *const QObject as *mut QObject)
+        QtId::from(self.base.widget.static_upcast::<QObject>().as_raw_ptr() as *mut QObject)
     }
 }
 impl HasVisibilityInner for QtProgressBar {
@@ -122,7 +126,7 @@ impl HasVisibilityInner for QtProgressBar {
 }
 impl HasSizeInner for QtProgressBar {
     fn on_size_set(&mut self, _: &mut MemberBase, (width, height): (u16, u16)) -> bool {
-        self.base.widget.set_fixed_size((width as i32, height as i32));
+        unsafe { self.base.widget.set_fixed_size_2a(width as i32, height as i32); }
         true
     }
 }
@@ -137,16 +141,16 @@ impl Drawable for QtProgressBar {
         control.measured = match control.visibility {
             types::Visibility::Gone => (0, 0),
             _ => {
-                let font = self.base.widget.as_ref().font();
+                let font = unsafe { self.base.widget.as_ref().font() };
 
-                let mut label_size = QRect::new((0, 0, 0, 0));
+                let mut label_size = unsafe { QRect::from_4_int(0, 0, 0, 0) };
                 let w = match control.layout.width {
                     layout::Size::MatchParent => parent_width as i32,
                     layout::Size::Exact(w) => w as i32,
-                    layout::Size::WrapContent => {
+                    layout::Size::WrapContent => unsafe {
                         if label_size.width() < 1 {
-                            let fm = QFontMetrics::new(font);
-                            label_size = fm.bounding_rect(&self.base.widget.as_ref().text());
+                            let fm = QFontMetrics::new_1a(font);
+                            label_size = fm.bounding_rect_q_string(&self.base.widget.as_ref().text());
                         }
                         label_size.width() + 16
                     }
@@ -154,10 +158,10 @@ impl Drawable for QtProgressBar {
                 let h = match control.layout.height {
                     layout::Size::MatchParent => parent_height as i32,
                     layout::Size::Exact(h) => h as i32,
-                    layout::Size::WrapContent => {
+                    layout::Size::WrapContent => unsafe {
                         if label_size.height() < 1 {
-                            let fm = QFontMetrics::new(font);
-                            label_size = fm.bounding_rect(&self.base.widget.as_ref().text());
+                            let fm = QFontMetrics::new_1a(font);
+                            label_size = fm.bounding_rect_q_string(&self.base.widget.as_ref().text());
                         }
                         label_size.height() + 16
                     }
@@ -179,14 +183,17 @@ pub(crate) fn spawn() -> Box<dyn controls::Control> {
 }
 
 fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
-    match event.type_() {
+    match unsafe { event.type_() } {
         QEventType::Resize => {
             if let Some(this) = cast_qobject_to_uimember_mut::<ProgressBar>(object) {
-                let size = unsafe { event.static_cast_mut() as &mut QResizeEvent };
-                let size = (
-                	utils::coord_to_size(size.size().width()), 
-                	utils::coord_to_size(size.size().height())
-                );
+                let size = unsafe { 
+                    let size = &mut MutRef::from_raw_ref(event).static_downcast_mut::<QResizeEvent>();
+                    let size = (
+                    	utils::coord_to_size(size.size().width()), 
+                    	utils::coord_to_size(size.size().height())
+                    );
+                    size
+                };
                 this.as_inner_mut().base_mut().measured = size;
                 this.call_on_size(size.0, size.1);
             }
@@ -194,7 +201,7 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
         QEventType::Destroy => {
             if let Some(ll) = cast_qobject_to_uimember_mut::<ProgressBar>(object) {
                 unsafe {
-                    ptr::write(&mut ll.as_inner_mut().as_inner_mut().base.widget, CppBox::new(ptr::null_mut()));
+                    ptr::write(&mut ll.as_inner_mut().as_inner_mut().base.widget, CppBox::new(MutPtr::null()).unwrap());
                 }
             }
         }

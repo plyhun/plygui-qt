@@ -30,7 +30,7 @@ pub struct QtApplication {
 impl QtApplication {
     fn maybe_exit(&mut self) -> bool {
         if self.windows.len() < 1 && self.trays.len() < 1 {
-            QCoreApplication::quit();
+            unsafe { QCoreApplication::quit(); }
             true
         } else {
             false
@@ -40,24 +40,24 @@ impl QtApplication {
 
 impl ApplicationInner for QtApplication {
 	fn frame_sleep(&self) -> u32 {
-		let interval = self.timer.interval();
+		let interval = unsafe { self.timer.interval() };
 		if interval > -1 { interval as u32 } else { 0 }
 	}
 	fn set_frame_sleep(&mut self, value: u32) {
-		self.timer.set_interval(value as i32);
+		unsafe { self.timer.set_interval(value as i32) };
 	}
     fn get() -> Box<Application> {
-        let args = QCoreApplicationArgs::new();
+        let mut args = QCoreApplicationArgs::new();
         let (arg1, arg2) = args.get();
         let inner = unsafe { QApplication::new_2a(MutRef::from_raw(arg1).unwrap(), arg2) };
-        QGuiApplication::set_quit_on_last_window_closed(false);
+        unsafe { QGuiApplication::set_quit_on_last_window_closed(false) };
         //QCoreApplication::set_application_name(&String::from_std_str(name));
         let mut app = Box::new(development::Application::with_inner(
             QtApplication {
                 _args: args,
                 inner: inner,
                 windows: Vec::with_capacity(1),
-                timer: QTimer::new_0a(),
+                timer: unsafe { QTimer::new_0a() },
                 queue: Slot::new(move || {}),
                 trays: vec![],
             },
@@ -85,7 +85,7 @@ impl ApplicationInner for QtApplication {
                     }
                 }
             });
-            app.timer.timeout().connect(&app.queue);
+            unsafe { app.timer.timeout().connect(&app.queue) };
             app.timer.slot_start();
         }
         app
@@ -113,14 +113,14 @@ impl ApplicationInner for QtApplication {
         self.maybe_exit();
     }
     fn name<'a>(&'a self) -> Cow<'a, str> {
-        let name = QCoreApplication::application_name().to_utf8();
         unsafe {
+            let name = QCoreApplication::application_name().to_utf8();
             let bytes = std::slice::from_raw_parts(name.const_data().as_raw_ptr() as *const u8, name.count() as usize);
             Cow::Owned(std::str::from_utf8_unchecked(bytes).to_owned())
         }
     }
     fn start(&mut self) {
-        exit(QApplication::exec());
+        exit(unsafe { QApplication::exec() });
     }
     fn exit(&mut self, skip_on_close: bool) -> bool {
         use crate::plygui_api::controls::Closeable;
@@ -268,7 +268,7 @@ impl HasNativeIdInner for QtApplication {
 }
 impl Drop for QtApplication {
     fn drop(&mut self) {
-        QApplication::close_all_windows();
+        unsafe { QApplication::close_all_windows() };
     }
 }
 struct MemberIterator<'a> {

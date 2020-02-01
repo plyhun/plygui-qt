@@ -15,7 +15,7 @@ pub use qt_gui::QResizeEvent;
 pub use qt_widgets::QMenu;
 pub use qt_widgets::q_size_policy::Policy as QSizePolicy;
 pub use qt_widgets::QWidget;
-pub use qt_widgets::cpp_core::{CppBox, CppDeletable, DynamicCast, StaticUpcast, StaticDowncast, Ref, MutRef};
+pub use qt_widgets::cpp_core::{CppBox, CppDeletable, DynamicCast, StaticUpcast, StaticDowncast, Ref, MutRef, Ptr, MutPtr};
 pub use std::ffi::CString;
 pub use std::os::raw::c_void;
 pub use std::{cmp, marker, mem, ops, ptr, sync::mpsc};
@@ -96,62 +96,62 @@ impl<T: controls::Control + Sized, Q: StaticUpcast<QWidget> + CppDeletable> QtCo
             dirty: true,
             _marker: marker::PhantomData,
         };
-        base.widget.static_upcast_mut().set_minimum_size_2a(1, 1);
         unsafe {
+            base.widget.static_upcast_mut().set_minimum_size_2a(1, 1);
             let filter: *mut QObject = base.event_callback.static_upcast_mut::<QObject>().as_mut_raw_ptr();
             let qobject: &mut QObject = &mut base.widget.static_upcast_mut();
             qobject.install_event_filter(filter);
         }
         base
     }
-    pub fn as_qwidget(&self) -> &QWidget {
-        &self.widget.static_upcast()
+    pub fn as_qwidget(&self) -> Ref<QWidget> {
+        unsafe { self.widget.static_upcast() }
     }
-    pub fn as_qwidget_mut(&mut self) -> &mut QWidget {
-        &mut self.widget.static_upcast_mut()
+    pub fn as_qwidget_mut(&mut self) -> MutRef<QWidget> {
+        unsafe { self.widget.static_upcast_mut() }
     }
     pub fn draw(&mut self, _member: &mut MemberBase, control: &mut ControlBase) {
         if let Some(_coords) = control.coords {
             //self.widget.static_upcast_mut().move_((coords.0 as i32, coords.1 as i32));
             let wpolicy = match control.layout.width {
                 layout::Size::MatchParent => {
-                    self.widget.static_upcast_mut().set_minimum_width(1);
+                    unsafe { self.widget.static_upcast_mut().set_minimum_width(1); }
                     QSizePolicy::Expanding
                 }
                 layout::Size::WrapContent => {
-                    self.widget.static_upcast_mut().set_minimum_width(1);
+                    unsafe { self.widget.static_upcast_mut().set_minimum_width(1); }
                     QSizePolicy::Minimum
                 }
                 layout::Size::Exact(value) => {
-                    self.widget.static_upcast_mut().set_fixed_width(value as i32);
+                    unsafe { self.widget.static_upcast_mut().set_fixed_width(value as i32); }
                     QSizePolicy::Fixed
                 }
             };
             let hpolicy = match control.layout.height {
                 layout::Size::MatchParent => {
-                    self.widget.static_upcast_mut().set_minimum_height(1);
+                    unsafe { self.widget.static_upcast_mut().set_minimum_height(1); }
                     QSizePolicy::Expanding
                 }
                 layout::Size::WrapContent => {
-                    self.widget.static_upcast_mut().set_minimum_height(1);
+                    unsafe { self.widget.static_upcast_mut().set_minimum_height(1); }
                     QSizePolicy::Minimum
                 }
                 layout::Size::Exact(value) => {
-                    self.widget.static_upcast_mut().set_fixed_height(value as i32);
+                    unsafe { self.widget.static_upcast_mut().set_fixed_height(value as i32); }
                     QSizePolicy::Fixed
                 }
             };
-            self.widget.static_upcast_mut().set_size_policy_2a(wpolicy, hpolicy);
+            unsafe { self.widget.static_upcast_mut().set_size_policy_2a(wpolicy, hpolicy); }
         }
     }
     pub fn invalidate(&mut self) -> bool {
-        let parent_widget = self.widget.static_upcast_mut().parent_widget();
+        let parent_widget = unsafe { self.widget.static_upcast_mut().parent_widget() };
         if parent_widget.is_null() {
             return false;
         }
-        if let Some(mparent) = cast_qobject_to_base_mut(&mut StaticUpcast::static_upcast_mut(parent_widget)) {
+        if let Some(mparent) = cast_qobject_to_base_mut(unsafe { &mut StaticUpcast::static_upcast_mut(parent_widget) }) {
             let (pw, ph) = mparent.as_member().is_has_size().unwrap().size();
-            let this = cast_qobject_to_uimember_mut::<T>(&mut self.widget.static_upcast_mut().static_upcast_mut()).unwrap();
+            let this = cast_qobject_to_uimember_mut::<T>(unsafe { &mut self.widget.static_upcast_mut().static_upcast_mut() }).unwrap();
             let (_, _, changed) = this.measure(pw, ph);
             this.draw(None);
 
@@ -165,10 +165,12 @@ impl<T: controls::Control + Sized, Q: StaticUpcast<QWidget> + CppDeletable> QtCo
     }
     pub fn set_visibility(&mut self, visibility: types::Visibility) {
         let widget = &mut self.widget;
-        let mut sp_retain = widget.static_upcast_mut().size_policy();
-        sp_retain.set_retain_size_when_hidden(visibility != types::Visibility::Gone);
-        widget.static_upcast_mut().set_size_policy_1a(&sp_retain);
-        widget.static_upcast_mut().set_visible(visibility == types::Visibility::Visible);
+        unsafe {
+            let mut sp_retain = widget.static_upcast_mut().size_policy();
+            sp_retain.set_retain_size_when_hidden(visibility != types::Visibility::Gone);
+            widget.static_upcast_mut().set_size_policy_1a(&sp_retain);
+            widget.static_upcast_mut().set_visible(visibility == types::Visibility::Visible);
+        }
     }
     pub fn parent(&self) -> Option<&dyn controls::Member> {
         unsafe {
@@ -282,6 +284,7 @@ pub fn qorientation_to_orientation(o: QOrientation) -> layout::Orientation {
     match o {
         QOrientation::Horizontal => layout::Orientation::Horizontal,
         QOrientation::Vertical => layout::Orientation::Vertical,
+        _ => { unreachable!() }
     }
 }
 /*pub fn image_to_qimage(src: &image::DynamicImage) -> CppBox<QImage> {
@@ -295,12 +298,12 @@ pub fn append_item<T: controls::Member>(menu: &mut QMenu, label: String, action:
     let id = storage.len();
     let action = (action, slot_spawn(id, selfptr));
     let qaction = unsafe { &mut *menu.add_action_q_string(QString::from_std_str(label).as_ref()) };
-    qaction.triggered().connect(&action.1);
+    unsafe { qaction.triggered().connect(&action.1) }; 
     storage.push(action);
 }
 pub fn append_level<T: controls::Member>(menu: &mut QMenu, label: String, items: Vec<types::MenuItem>, storage: &mut Vec<(callbacks::Action, Slot<'static>)>, slot_spawn: fn(id: usize, selfptr: *mut T) -> Slot<'static>, selfptr: *mut T) {
-    let submenu = menu.add_menu_q_string(QString::from_std_str(label).as_ref());
-    make_menu(unsafe { &mut *submenu }, items, storage, slot_spawn, selfptr);
+    let mut submenu = unsafe { menu.add_menu_q_string(QString::from_std_str(label).as_ref()) };
+    make_menu(&mut submenu, items, storage, slot_spawn, selfptr);
 }
 pub fn make_menu<T: controls::Member>(menu: &mut QMenu, mut items: Vec<types::MenuItem>, storage: &mut Vec<(callbacks::Action, Slot<'static>)>, slot_spawn: fn(id: usize, selfptr: *mut T) -> Slot<'static>, selfptr: *mut T) {
     let mut options = Vec::new();
@@ -316,7 +319,7 @@ pub fn make_menu<T: controls::Member>(menu: &mut QMenu, mut items: Vec<types::Me
                     append_level(menu, label, items, storage, slot_spawn, selfptr);
                 }
                 types::MenuItem::Delimiter => {
-                    menu.add_separator();
+                    unsafe { menu.add_separator() };
                 }
             }
         }
@@ -347,7 +350,7 @@ pub fn make_menu<T: controls::Member>(menu: &mut QMenu, mut items: Vec<types::Me
                 }
             },
             types::MenuItem::Delimiter => {
-                menu.add_separator();
+                unsafe { menu.add_separator() };
             }
         }
     }

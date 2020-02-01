@@ -20,14 +20,14 @@ pub struct QtTray {
 
 impl HasLabelInner for QtTray {
     fn label(&self, _: &MemberBase) -> Cow<str> {
-        let name = (&*self.tray.as_ref()).tool_tip().to_utf8();
         unsafe {
-            let bytes = std::slice::from_raw_parts(name.const_data() as *const u8, name.count(()) as usize);
+            let name = (&*self.tray.as_ref()).tool_tip().to_utf8();
+            let bytes = std::slice::from_raw_parts(name.const_data().as_raw_ptr() as *const u8, name.count() as usize);
             Cow::Owned(std::str::from_utf8_unchecked(bytes).to_owned())
         }
     }
     fn set_label(&mut self, _: &mut MemberBase, label: Cow<str>) {
-        self.tray.set_tool_tip(&QString::from_std_str(label));
+        unsafe { self.tray.set_tool_tip(&QString::from_std_str(label)); }
     }
 }
 
@@ -36,13 +36,13 @@ impl CloseableInner for QtTray {
         self.skip_callbacks = skip_callbacks;
         if !skip_callbacks {
             if let Some(ref mut on_close) = self.on_close {
-                let w2 = common::cast_qobject_to_uimember_mut::<Tray>(self.tray.as_mut().static_cast_mut() as &mut QObject).unwrap();
+                let w2 = common::cast_qobject_to_uimember_mut::<Tray>(unsafe { &mut self.tray.static_upcast_mut::<QObject>() }).unwrap();
                 if !(on_close.as_mut())(w2) {
                     return false;
                 }
             }
         }
-        self.tray.hide();
+        unsafe { self.tray.hide(); }
         crate::application::Application::get()
             .unwrap()
             .as_any_mut()
@@ -66,18 +66,18 @@ impl HasImageInner for QtTray {
     		let status_size = 22; //self.tray.size() as u32;
     		i.resize(status_size, status_size, image::FilterType::Lanczos3)
     	};
-    	let raw = i.to_rgba().into_raw();
+    	let mut raw = i.to_rgba().into_raw();
 	    let (w, h) = i.dimensions();
-        let i = unsafe { QImage::new_unsafe((raw.as_ptr(), w as i32, h as i32, Format::FormatRGBA8888)) };
-        self.tray.set_icon(&QIcon::new(QPixmap::from_image(i.as_ref()).as_ref()));
+        let i = unsafe { QImage::from_uchar2_int_format(MutPtr::from_raw(raw.as_mut_ptr()), w as i32, h as i32, Format::FormatRGBA8888) };
+        unsafe { self.tray.set_icon(QIcon::from_q_pixmap(QPixmap::from_image_1a(i.as_ref()).as_ref()).as_ref()); }
     }
 }
 impl TrayInner for QtTray {
     fn with_params(title: &str, menu: types::Menu) -> Box<Member<Self>> {
         use plygui_api::controls::HasLabel;
 
-        let icon = unsafe { &mut *QApplication::style() }.standard_icon(StandardPixmap::DesktopIcon);
-        let tray = QSystemTrayIcon::new(());
+        let icon = unsafe { QApplication::style().standard_icon_1a(StandardPixmap::SPDesktopIcon) };
+        let tray = unsafe { QSystemTrayIcon::new() };
 
         let mut tray = Box::new(Member::with_inner(
             QtTray {
@@ -91,7 +91,7 @@ impl TrayInner for QtTray {
         ));
         unsafe {
             let ptr = tray.as_ref() as *const _ as u64;
-            (tray.as_inner_mut().tray.as_mut().static_cast_mut() as &mut QObject).set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::new0(ptr));
+            (tray.as_inner_mut().tray.static_upcast_mut::<QObject>()).set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
         }
         tray.set_label(title.into());
         {
@@ -100,14 +100,14 @@ impl TrayInner for QtTray {
             //tray.tray.set_size_policy((QPolicy::Ignored, QPolicy::Ignored));
             //tray.tray.set_minimum_size((1, 1));
             unsafe {
-                let filter: *mut QObject = tray.filter.static_cast_mut() as *mut QObject;
-                let qobject: &mut QObject = tray.tray.as_mut().static_cast_mut();
+                let filter = tray.filter.static_upcast_mut::<QObject>();
+                let mut qobject = tray.tray.static_upcast_mut::<QObject>();
                 qobject.install_event_filter(filter);
+                tray.tray.set_icon(icon.as_ref());
             }
-            tray.tray.set_icon(&icon);
-
+            
             if let Some(items) = menu {
-                tray.menu = Some((QMenu::new(()), Vec::new()));
+                tray.menu = Some((unsafe { QMenu::new() }, Vec::new()));
                 if let Some((ref mut context_menu, ref mut storage)) = tray.menu {
                     fn slot_spawn(id: usize, selfptr: *mut Tray) -> Slot<'static> {
                         Slot::new(move || {
@@ -129,8 +129,7 @@ impl TrayInner for QtTray {
                     unreachable!();
                 }
             }
-
-            tray.tray.show();
+            unsafe { tray.tray.show(); }
         }
         tray
     }
@@ -140,15 +139,17 @@ impl HasNativeIdInner for QtTray {
     type Id = common::QtId;
 
     unsafe fn native_id(&self) -> Self::Id {
-        QtId::from(self.tray.static_cast() as *const QObject as *mut QObject)
+        QtId::from(self.tray.static_upcast::<QObject>().as_raw_ptr() as *mut QObject)
     }
 }
 impl HasVisibilityInner for QtTray {
     fn on_visibility_set(&mut self, _: &mut MemberBase, value: types::Visibility) -> bool {
-        if types::Visibility::Visible == value {
-            self.tray.slots().show();
-        } else {
-            self.tray.slots().hide();
+        unsafe {
+            if types::Visibility::Visible == value {
+                self.tray.show();
+            } else {
+                self.tray.hide();
+            }
         }
         true
     }
@@ -156,8 +157,7 @@ impl HasVisibilityInner for QtTray {
 impl MemberInner for QtTray {}
 
 fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
-    dbg!(event.type_());
-    match event.type_() {
+    match unsafe { event.type_() } {
         QEventType::Hide => {
             let object2 = object as *mut QObject;
             if let Some(w) = common::cast_qobject_to_uimember_mut::<Tray>(object) {
@@ -165,7 +165,7 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
                     if let Some(ref mut on_close) = w.as_inner_mut().on_close {
                         let w2 = common::cast_qobject_to_uimember_mut::<Tray>(unsafe { &mut *object2 }).unwrap();
                         if !(on_close.as_mut())(w2) {
-                            event.ignore();
+                            unsafe { event.ignore(); }
                             return true;
                         }
                     }

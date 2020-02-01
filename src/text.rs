@@ -16,14 +16,14 @@ pub struct QtText {
 
 impl HasLabelInner for QtText {
     fn label(&self, _: &MemberBase) -> Cow<str> {
-        let name = self.base.widget.as_ref().text().to_utf8();
         unsafe {
-            let bytes = std::slice::from_raw_parts(name.const_data() as *const u8, name.count(()) as usize);
+            let name = self.base.widget.as_ref().text().to_utf8();
+            let bytes = std::slice::from_raw_parts(name.const_data().as_raw_ptr() as *const u8, name.count() as usize);
             Cow::Owned(std::str::from_utf8_unchecked(bytes).to_owned())
         }
     }
     fn set_label(&mut self, _: &mut MemberBase, label: Cow<str>) {
-        self.base.widget.as_mut().set_text(&QString::from_std_str(label));
+        unsafe { self.base.widget.set_text(&QString::from_std_str(label)) };
     }
 }
 
@@ -32,7 +32,7 @@ impl TextInner for QtText {
         let mut btn = Box::new(Member::with_inner(
             Control::with_inner(
                 QtText {
-                    base: common::QtControlBase::with_params(QLabel::new(&QString::from_std_str(text)), event_handler),
+                    base: common::QtControlBase::with_params(unsafe { QLabel::from_q_string(&QString::from_std_str(text)) }, event_handler),
                 },
                 (),
             ),
@@ -40,8 +40,8 @@ impl TextInner for QtText {
         ));
         unsafe {
             let ptr = btn.as_ref() as *const _ as u64;
-            let qo: &mut QObject = btn.as_inner_mut().as_inner_mut().base.widget.static_cast_mut();
-            qo.set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::new0(ptr));
+            let mut qo = btn.as_inner_mut().as_inner_mut().base.widget.static_upcast_mut::<QObject>();
+            qo.set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
         }
         btn
     }
@@ -88,7 +88,7 @@ impl HasNativeIdInner for QtText {
     type Id = common::QtId;
 
     unsafe fn native_id(&self) -> Self::Id {
-        QtId::from(self.base.widget.static_cast() as *const QObject as *mut QObject)
+        QtId::from(self.base.widget.static_upcast::<QObject>().as_raw_ptr() as *mut QObject)
     }
 }
 impl HasVisibilityInner for QtText {
@@ -99,7 +99,7 @@ impl HasVisibilityInner for QtText {
 }
 impl HasSizeInner for QtText {
     fn on_size_set(&mut self, _: &mut MemberBase, (width, height): (u16, u16)) -> bool {
-        self.base.widget.set_fixed_size((width as i32, height as i32));
+        unsafe { self.base.widget.set_fixed_size_2a(width as i32, height as i32); }
         true
     }
 }
@@ -114,16 +114,15 @@ impl Drawable for QtText {
         control.measured = match control.visibility {
             types::Visibility::Gone => (0, 0),
             _ => {
-                let font = self.base.widget.as_ref().font();
-
-                let mut label_size = QRect::new((0, 0, 0, 0));
+                let font = unsafe { self.base.widget.as_ref().font() };
+                let mut label_size = unsafe { QRect::from_4_int(0, 0, 0, 0) };
                 let w = match control.layout.width {
                     layout::Size::MatchParent => parent_width as i32,
                     layout::Size::Exact(w) => w as i32,
-                    layout::Size::WrapContent => {
+                    layout::Size::WrapContent => unsafe {
                         if label_size.width() < 1 {
-                            let fm = QFontMetrics::new(font);
-                            label_size = fm.bounding_rect(&self.base.widget.as_ref().text());
+                            let fm = QFontMetrics::new_1a(font);
+                            label_size = fm.bounding_rect_q_string(&self.base.widget.as_ref().text());
                         }
                         label_size.width() + 16
                     }
@@ -131,10 +130,10 @@ impl Drawable for QtText {
                 let h = match control.layout.height {
                     layout::Size::MatchParent => parent_height as i32,
                     layout::Size::Exact(h) => h as i32,
-                    layout::Size::WrapContent => {
+                    layout::Size::WrapContent => unsafe {
                         if label_size.height() < 1 {
-                            let fm = QFontMetrics::new(font);
-                            label_size = fm.bounding_rect(&self.base.widget.as_ref().text());
+                            let fm = QFontMetrics::new_1a(font);
+                            label_size = fm.bounding_rect_q_string(&self.base.widget.as_ref().text());
                         }
                         label_size.height() + 16
                     }
@@ -156,14 +155,17 @@ pub(crate) fn spawn() -> Box<dyn controls::Control> {
 }
 
 fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
-    match event.type_() {
+    match unsafe { event.type_() } {
         QEventType::Resize => {
             if let Some(this) = cast_qobject_to_uimember_mut::<Text>(object) {
-                let size = unsafe { event.static_cast_mut() as &mut QResizeEvent };
-                let size = (
-                	utils::coord_to_size(size.size().width()), 
-                	utils::coord_to_size(size.size().height())
-                );
+                let size = unsafe { 
+                    let size = &mut MutRef::from_raw_ref(event).static_downcast_mut::<QResizeEvent>();
+                    let size = (
+                    	utils::coord_to_size(size.size().width()), 
+                    	utils::coord_to_size(size.size().height())
+                    );
+                    size
+                };
                 this.as_inner_mut().base_mut().measured = size;
                 this.call_on_size(size.0, size.1);
             }
@@ -171,7 +173,7 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
         QEventType::Destroy => {
             if let Some(ll) = cast_qobject_to_uimember_mut::<Text>(object) {
                 unsafe {
-                    ptr::write(&mut ll.as_inner_mut().as_inner_mut().base.widget, CppBox::new(ptr::null_mut()));
+                    ptr::write(&mut ll.as_inner_mut().as_inner_mut().base.widget, CppBox::new(MutPtr::null()).unwrap());
                 }
             }
         }

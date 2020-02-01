@@ -18,10 +18,10 @@ pub struct QtSplitted {
 
 impl SplittedInner for QtSplitted {
     fn with_content(mut first: Box<dyn controls::Control>, mut second: Box<dyn controls::Control>, orientation: layout::Orientation) -> Box<Member<Control<MultiContainer<Self>>>> {
-        let mut qsplitter = QSplitter::new(orientation_to_qorientation(orientation));
+        let mut qsplitter = unsafe { QSplitter::from_orientation(orientation_to_qorientation(orientation)) };
         unsafe {
-            qsplitter.insert_widget(0, common::cast_control_to_qwidget_mut(first.as_mut()));
-            qsplitter.insert_widget(1, common::cast_control_to_qwidget_mut(second.as_mut()));
+            qsplitter.insert_widget(0, MutPtr::from_raw(common::cast_control_to_qwidget_mut(first.as_mut())));
+            qsplitter.insert_widget(1, MutPtr::from_raw(common::cast_control_to_qwidget_mut(second.as_mut())));
         }
         let mut ll = Box::new(Member::with_inner(
             Control::with_inner(
@@ -45,10 +45,10 @@ impl SplittedInner for QtSplitted {
             ll.as_inner_mut().as_inner_mut().as_inner_mut().splitter_moved.set(move |position| {
                 splitter_moved(&mut *(ptr as *mut Splitted), position);
             });
-            ll.as_inner().as_inner().as_inner().base.widget.signals().splitter_moved().connect(&ll.as_inner().as_inner().as_inner().splitter_moved);
+            ll.as_inner().as_inner().as_inner().base.widget.splitter_moved().connect(&ll.as_inner().as_inner().as_inner().splitter_moved);
             {
-                let qo: &mut QObject = ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget.static_cast_mut();
-                qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::new0(ptr));
+                let mut qo = ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget.static_upcast_mut::<QObject>();
+                qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
             }
         }
         //ll.as_inner_mut().as_inner_mut().as_inner_mut().update_children_orientation();
@@ -81,11 +81,13 @@ impl QtSplitted {
     fn children_sizes(&self, control: &mut ControlBase) -> (u16, u16) {
         let (w, h) = control.measured;
         let o = self.layout_orientation();
-        let margins = self.base.widget.contents_margins();
-        let handle = self.base.widget.handle_width();
-        let (target, start, end) = match o {
-            layout::Orientation::Horizontal => (w, margins.left(), margins.right()),
-            layout::Orientation::Vertical => (h, margins.top(), margins.bottom()),
+        let (target, start, end, handle) = unsafe {
+            let handle = self.base.widget.handle_width();
+            let margins = self.base.widget.contents_margins();
+            match o {
+                layout::Orientation::Horizontal => (w, margins.left(), margins.right(), handle),
+                layout::Orientation::Vertical => (h, margins.top(), margins.bottom(), handle),
+            }
         };
         (
             utils::coord_to_size((target as f32 * self.splitter) as i32 - start - (handle / 2)),
@@ -94,24 +96,26 @@ impl QtSplitted {
     }
     fn update_splitter(&mut self, control: &mut ControlBase) {
         let (first, second) = self.children_sizes(control);
-        let mut list = QListOfInt::new(());
-        list.append(&(first as i32));
-        list.append(&(second as i32));
-        self.base.widget.as_mut().set_sizes(&list);
+        unsafe {
+            let mut list = QListOfInt::new();
+            list.append_int(Ref::from_raw_ref(&(first as i32)));
+            list.append_int(Ref::from_raw_ref(&(second as i32)));
+            self.base.widget.set_sizes(&list);
+        }
         self.update_children_layout(control);
     }
     fn update_children_layout(&mut self, control: &mut ControlBase) {
         let orientation = self.layout_orientation();
         let (first_size, second_size) = self.children_sizes(control);
         let (width, height) = control.measured;
-        let margins = self.base.widget.contents_margins();
+        let margins = unsafe { self.base.widget.contents_margins() };
         for (size, child) in [(first_size, self.first.as_mut()), (second_size, self.second.as_mut())].iter_mut() {
             match orientation {
                 layout::Orientation::Horizontal => {
-                    child.measure(cmp::max(0, *size) as u16, cmp::max(0, height as i32 - margins.top() - margins.bottom()) as u16);
+                    child.measure(cmp::max(0, *size) as u16, unsafe { cmp::max(0, height as i32 - margins.top() - margins.bottom()) as u16 });
                 }
                 layout::Orientation::Vertical => {
-                    child.measure(cmp::max(0, width as i32 - margins.left() - margins.right()) as u16, cmp::max(0, *size) as u16);
+                    child.measure(unsafe { cmp::max(0, width as i32 - margins.left() - margins.right()) as u16 }, cmp::max(0, *size) as u16);
                 }
             }
         }
@@ -120,12 +124,10 @@ impl QtSplitted {
 
 impl Drop for QtSplitted {
     fn drop(&mut self) {
-        if !self.base.widget.is_null() {
-            let qo = self.base.widget.as_mut().static_cast_mut() as *mut QObject;
-            if let Some(self2) = common::cast_qobject_to_uimember_mut::<Splitted>(unsafe { &mut *qo }) {
-                self.first.on_removed_from_container(self2);
-                self.second.on_removed_from_container(self2);
-            }
+        let mut qo = unsafe { self.base.widget.static_upcast_mut::<QObject>() };
+        if let Some(self2) = common::cast_qobject_to_uimember_mut::<Splitted>(&mut *qo) {
+            self.first.on_removed_from_container(self2);
+            self.second.on_removed_from_container(self2);
         }
     }
 }
@@ -134,7 +136,7 @@ impl HasNativeIdInner for QtSplitted {
     type Id = common::QtId;
 
     unsafe fn native_id(&self) -> Self::Id {
-        QtId::from(self.base.widget.static_cast() as *const QObject as *mut QObject)
+        QtId::from(self.base.widget.static_upcast::<QObject>().as_raw_ptr() as *mut QObject)
     }
 }
 impl HasVisibilityInner for QtSplitted {
@@ -145,7 +147,7 @@ impl HasVisibilityInner for QtSplitted {
 }
 impl HasSizeInner for QtSplitted {
     fn on_size_set(&mut self, _: &mut MemberBase, (width, height): (u16, u16)) -> bool {
-        self.base.widget.set_fixed_size((width as i32, height as i32));
+        unsafe { self.base.widget.set_fixed_size_2a(width as i32, height as i32); }
         true
     }
 }
@@ -160,7 +162,7 @@ impl Drawable for QtSplitted {
         let orientation = self.layout_orientation();
         let old_size = control.measured;
         let (first, second) = self.children_sizes(control);
-        let margins = self.base.widget.contents_margins();
+        let margins = unsafe { self.base.widget.contents_margins() };
 
         control.measured = match control.visibility {
             types::Visibility::Gone => (0, 0),
@@ -174,17 +176,17 @@ impl Drawable for QtSplitted {
                         for (size, child) in [(first, self.first.as_mut()), (second, self.second.as_mut())].iter_mut() {
                             match orientation {
                                 layout::Orientation::Horizontal => {
-                                    let (cw, _, _) = child.measure(cmp::max(0, *size) as u16, cmp::max(0, parent_height as i32 - margins.top() - margins.bottom()) as u16);
+                                    let (cw, _, _) = child.measure(cmp::max(0, *size) as u16, unsafe { cmp::max(0, parent_height as i32 - margins.top() - margins.bottom()) as u16 });
                                     w += cw;
                                 }
                                 layout::Orientation::Vertical => {
-                                    let (cw, _, _) = child.measure(cmp::max(0, parent_width as i32 - margins.left() - margins.right()) as u16, cmp::max(0, *size) as u16);
+                                    let (cw, _, _) = child.measure(unsafe { cmp::max(0, parent_width as i32 - margins.left() - margins.right()) as u16 }, cmp::max(0, *size) as u16);
                                     w = cmp::max(w, cw);
                                 }
                             }
                             w += match child.visibility() {
                                 types::Visibility::Gone => 0,
-                                _ => cmp::max(0, self.base.widget.as_ref().handle_width()) as u16,
+                                _ => cmp::max(0, unsafe { self.base.widget.as_ref().handle_width() }) as u16,
                             };
                         }
                         measured = true;
@@ -201,8 +203,8 @@ impl Drawable for QtSplitted {
                                 child.size().1
                             } else {
                                 let (_, ch, _) = match orientation {
-                                    layout::Orientation::Horizontal => child.measure(cmp::max(0, *size) as u16, cmp::max(0, parent_height as i32 - margins.top() - margins.bottom()) as u16),
-                                    layout::Orientation::Vertical => child.measure(cmp::max(0, parent_width as i32 - margins.left() - margins.right()) as u16, cmp::max(0, *size) as u16),
+                                    layout::Orientation::Horizontal => child.measure(cmp::max(0, *size) as u16, unsafe { cmp::max(0, parent_height as i32 - margins.top() - margins.bottom()) as u16 }),
+                                    layout::Orientation::Vertical => child.measure(unsafe { cmp::max(0, parent_width as i32 - margins.left() - margins.right()) as u16 }, cmp::max(0, *size) as u16),
                                 };
                                 ch
                             };
@@ -216,7 +218,7 @@ impl Drawable for QtSplitted {
                             }
                             h += match child.visibility() {
                                 types::Visibility::Gone => 0,
-                                _ => cmp::max(0, self.base.widget.as_ref().handle_width()) as u16,
+                                _ => cmp::max(0, unsafe { self.base.widget.as_ref().handle_width() }) as u16,
                             };
                         }
                         h
@@ -247,20 +249,22 @@ impl ControlInner for QtSplitted {
         self.draw(member, control);
 
         let self2: &mut Splitted = unsafe { utils::base_to_impl_mut(member) };
-        let handle = self.base.widget.handle_width();
-        let margins = self.base.widget.contents_margins();
         let (first_size, second_size) = self.children_sizes(control);
 
-        match self.layout_orientation() {
-            layout::Orientation::Horizontal => {
-                let h = utils::coord_to_size(ph as i32 - margins.top() - margins.bottom());
-                self.first.on_added_to_container(self2, margins.left() + 6, margins.top() + 6, first_size, h);
-                self.second.on_added_to_container(self2, margins.left() + first_size as i32 + handle + 6, margins.top() + 6, second_size, h);
-            }
-            layout::Orientation::Vertical => {
-                let w = utils::coord_to_size(pw as i32 - margins.left() - margins.right());
-                self.first.on_added_to_container(self2, margins.left() + 6, margins.top() + 6, w, first_size);
-                self.second.on_added_to_container(self2, margins.left() + 6, margins.top() + first_size as i32 + handle + 6, w, second_size);
+        unsafe {
+            let handle = self.base.widget.handle_width();
+            let margins = self.base.widget.contents_margins();
+            match self.layout_orientation() {
+                layout::Orientation::Horizontal => {
+                    let h = utils::coord_to_size(ph as i32 - margins.top() - margins.bottom());
+                    self.first.on_added_to_container(self2, margins.left() + 6, margins.top() + 6, first_size, h);
+                    self.second.on_added_to_container(self2, margins.left() + first_size as i32 + handle + 6, margins.top() + 6, second_size, h);
+                }
+                layout::Orientation::Vertical => {
+                    let w = utils::coord_to_size(pw as i32 - margins.left() - margins.right());
+                    self.first.on_added_to_container(self2, margins.left() + 6, margins.top() + 6, w, first_size);
+                    self.second.on_added_to_container(self2, margins.left() + 6, margins.top() + first_size as i32 + handle + 6, w, second_size);
+                }
             }
         }
     }
@@ -294,10 +298,10 @@ impl ControlInner for QtSplitted {
 
 impl HasOrientationInner for QtSplitted {
     fn layout_orientation(&self) -> layout::Orientation {
-        qorientation_to_orientation(self.base.widget.as_ref().orientation())
+        qorientation_to_orientation(unsafe { self.base.widget.as_ref().orientation() })
     }
     fn set_layout_orientation(&mut self, _base: &mut MemberBase, orientation: layout::Orientation) {
-        self.base.widget.as_mut().set_orientation(orientation_to_qorientation(orientation));
+        unsafe { self.base.widget.set_orientation(orientation_to_qorientation(orientation)) };
         //self.update_children_orientation();
         self.base.invalidate();
     }
@@ -396,8 +400,8 @@ impl MultiContainerInner for QtSplitted {
         };
         mem::swap(added, &mut child);
         unsafe {
-            ((self.base.widget.as_mut().static_cast_mut() as &mut QFrame).layout().as_mut().unwrap().dynamic_cast_mut().unwrap() as &mut QBoxLayout).remove_widget(common::cast_control_to_qwidget_mut(child.as_mut()));
-            self.base.widget.as_mut().insert_widget(index as i32, common::cast_control_to_qwidget_mut(added.as_mut()));
+            ((self.base.widget.static_upcast_mut::<QFrame>()).layout().static_downcast_mut::<QBoxLayout>()).remove_widget(MutPtr::from_raw(common::cast_control_to_qwidget_mut(child.as_mut())));
+            self.base.widget.insert_widget(index as i32, MutPtr::from_raw(common::cast_control_to_qwidget_mut(added.as_mut())));
         }
         self.base.invalidate();
         Some(child)
@@ -457,14 +461,17 @@ fn splitter_moved(ll: &mut Splitted, position: i32) {
 }
 
 fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
-    match event.type_() {
+    match unsafe { event.type_() } {
         QEventType::Resize => {
             if let Some(this) = cast_qobject_to_uimember_mut::<Splitted>(object) {
-                let size = unsafe { event.static_cast_mut() as &mut QResizeEvent };
-                let size = (
-                	utils::coord_to_size(size.size().width()), 
-                	utils::coord_to_size(size.size().height())
-                );
+                let size = unsafe { 
+                    let size = &mut MutRef::from_raw_ref(event).static_downcast_mut::<QResizeEvent>();
+                    let size = (
+                    	utils::coord_to_size(size.size().width()), 
+                    	utils::coord_to_size(size.size().height())
+                    );
+                    size
+                };
                 this.as_inner_mut().base_mut().measured = size;
                 this.call_on_size(size.0, size.1);
             }
@@ -472,7 +479,7 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
         QEventType::Destroy => {
             if let Some(ll) = cast_qobject_to_uimember_mut::<Splitted>(object) {
                 unsafe {
-                    ptr::write(&mut ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget, CppBox::new(ptr::null_mut()));
+                    ptr::write(&mut ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget, CppBox::new(MutPtr::null()).unwrap());
                 }
             }
         }
