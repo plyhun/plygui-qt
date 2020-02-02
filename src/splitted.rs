@@ -5,7 +5,7 @@ use qt_core::SlotOfInt;
 use qt_widgets::QBoxLayout;
 use qt_widgets::QSplitter;
 
-pub type Splitted = Member<Control<MultiContainer<QtSplitted>>>;
+pub type Splitted = AMember<AControl<AContainer<AMultiContainer<ASplitted<QtSplitted>>>>>;
 
 #[repr(C)]
 pub struct QtSplitted {
@@ -16,48 +16,61 @@ pub struct QtSplitted {
     splitter_moved: SlotOfInt<'static>,
 }
 
-impl SplittedInner for QtSplitted {
-    fn with_content(mut first: Box<dyn controls::Control>, mut second: Box<dyn controls::Control>, orientation: layout::Orientation) -> Box<Member<Control<MultiContainer<Self>>>> {
+impl<O: controls::Splitted> NewSplittedInner<O> for QtSplitted {
+    fn with_uninit_params(ptr: &mut mem::MaybeUninit<O>, mut first: Box<dyn controls::Control>, mut second: Box<dyn controls::Control>, orientation: layout::Orientation) -> Self {
         let mut qsplitter = unsafe { QSplitter::from_orientation(orientation_to_qorientation(orientation)) };
         unsafe {
             qsplitter.insert_widget(0, MutPtr::from_raw(common::cast_control_to_qwidget_mut(first.as_mut())));
             qsplitter.insert_widget(1, MutPtr::from_raw(common::cast_control_to_qwidget_mut(second.as_mut())));
         }
-        let mut ll = Box::new(Member::with_inner(
-            Control::with_inner(
-                MultiContainer::with_inner(
-                    QtSplitted {
-                        base: common::QtControlBase::with_params(qsplitter, event_handler),
-                        splitter: defaults::SPLITTED_POSITION,
-                        first: first,
-                        second: second,
-                        splitter_moved: SlotOfInt::new(move |_| {}),
-                    },
-                    (),
-                ),
-                (),
-            ),
-            MemberFunctions::new(_as_any, _as_any_mut, _as_member, _as_member_mut),
-        ));
+        let mut ll = QtSplitted {
+            base: common::QtControlBase::with_params(qsplitter, event_handler::<O>),
+            splitter: defaults::SPLITTED_POSITION,
+            first: first,
+            second: second,
+            splitter_moved: SlotOfInt::new(move |_| {}),
+        };
         unsafe {
-            let ptr = ll.as_ref() as *const _ as u64;
-            ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget.set_children_collapsible(false);
-            ll.as_inner_mut().as_inner_mut().as_inner_mut().splitter_moved.set(move |position| {
+            let ptr = ptr as *const _ as u64;
+            ll.base.widget.set_children_collapsible(false);
+            ll.splitter_moved.set(move |position| {
                 splitter_moved(&mut *(ptr as *mut Splitted), position);
             });
-            ll.as_inner().as_inner().as_inner().base.widget.splitter_moved().connect(&ll.as_inner().as_inner().as_inner().splitter_moved);
+            ll.base.widget.splitter_moved().connect(&ll.splitter_moved);
             {
-                let mut qo = ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget.static_upcast_mut::<QObject>();
+                let mut qo = ll.base.widget.static_upcast_mut::<QObject>();
                 qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
             }
         }
-        //ll.as_inner_mut().as_inner_mut().as_inner_mut().update_children_orientation();
+        //ll.inner_mut().inner_mut().inner_mut().update_children_orientation();
         ll
+    }
+}
+impl SplittedInner for QtSplitted {
+    fn with_content(first: Box<dyn controls::Control>, second: Box<dyn controls::Control>, orientation: layout::Orientation) -> Box<dyn controls::Splitted> {
+        let mut b: Box<mem::MaybeUninit<Splitted>> = Box::new_uninit();
+        let ab = AMember::with_inner(
+            AControl::with_inner(
+                AContainer::with_inner(
+                    AMultiContainer::with_inner(
+                        ASplitted::with_inner(
+                            <Self as NewSplittedInner<Splitted>>::with_uninit_params(b.as_mut(), first, second, orientation)
+                        )
+                    ),
+                )
+            ),
+        );
+        unsafe {
+            b.as_mut_ptr().write(ab);
+	        b.assume_init()
+        }
     }
     fn set_splitter(&mut self, member: &mut MemberBase, pos: f32) {
         let pos = pos % 1.0;
         self.splitter = pos;
-        self.update_splitter(unsafe { utils::base_to_impl_mut::<Splitted>(member) }.as_inner_mut().base_mut());
+        let this = unsafe { utils::base_to_impl_mut::<Splitted>(member) };
+        let (m, c, _) = Splitted::as_control_parts_mut(this);
+        self.update_splitter(m, c);
     }
     fn splitter(&self) -> f32 {
         self.splitter
@@ -78,9 +91,9 @@ impl SplittedInner for QtSplitted {
 }
 
 impl QtSplitted {
-    fn children_sizes(&self, control: &mut ControlBase) -> (u16, u16) {
+    fn children_sizes(&self, member: &mut MemberBase, control: &mut ControlBase) -> (u16, u16) {
         let (w, h) = control.measured;
-        let o = self.layout_orientation();
+        let o = self.orientation(member);
         let (target, start, end, handle) = unsafe {
             let handle = self.base.widget.handle_width();
             let margins = self.base.widget.contents_margins();
@@ -94,19 +107,19 @@ impl QtSplitted {
             utils::coord_to_size((target as f32 * (1.0 - self.splitter)) as i32 - end - (handle / 2)),
         )
     }
-    fn update_splitter(&mut self, control: &mut ControlBase) {
-        let (first, second) = self.children_sizes(control);
+    fn update_splitter(&mut self, member: &mut MemberBase, control: &mut ControlBase) {
+        let (first, second) = self.children_sizes(member, control);
         unsafe {
             let mut list = QListOfInt::new();
             list.append_int(Ref::from_raw_ref(&(first as i32)));
             list.append_int(Ref::from_raw_ref(&(second as i32)));
             self.base.widget.set_sizes(&list);
         }
-        self.update_children_layout(control);
+        self.update_children_layout(member, control);
     }
-    fn update_children_layout(&mut self, control: &mut ControlBase) {
-        let orientation = self.layout_orientation();
-        let (first_size, second_size) = self.children_sizes(control);
+    fn update_children_layout(&mut self, member: &mut MemberBase, control: &mut ControlBase) {
+        let orientation = self.orientation(member);
+        let (first_size, second_size) = self.children_sizes(member, control);
         let (width, height) = control.measured;
         let margins = unsafe { self.base.widget.contents_margins() };
         for (size, child) in [(first_size, self.first.as_mut()), (second_size, self.second.as_mut())].iter_mut() {
@@ -157,11 +170,11 @@ impl Drawable for QtSplitted {
     fn draw(&mut self, member: &mut MemberBase, control: &mut ControlBase) {
         self.base.draw(member, control);
     }
-    fn measure(&mut self, _: &mut MemberBase, control: &mut ControlBase, parent_width: u16, parent_height: u16) -> (u16, u16, bool) {
-        self.update_children_layout(control);
-        let orientation = self.layout_orientation();
+    fn measure(&mut self, member: &mut MemberBase, control: &mut ControlBase, parent_width: u16, parent_height: u16) -> (u16, u16, bool) {
+        self.update_children_layout(member, control);
+        let orientation = self.orientation(member);
         let old_size = control.measured;
-        let (first, second) = self.children_sizes(control);
+        let (first, second) = self.children_sizes(member, control);
         let margins = unsafe { self.base.widget.contents_margins() };
 
         control.measured = match control.visibility {
@@ -236,7 +249,9 @@ impl Drawable for QtSplitted {
 }
 impl HasLayoutInner for QtSplitted {
     fn on_layout_changed(&mut self, base: &mut MemberBase) {
-        self.update_splitter(unsafe { utils::base_to_impl_mut::<Splitted>(base) }.as_inner_mut().base_mut());
+        let this = unsafe { utils::base_to_impl_mut::<Splitted>(base) };
+        let (m, c, _) = Splitted::as_control_parts_mut(this);
+        self.update_splitter(m, c);
         self.base.invalidate();
     }
 }
@@ -244,24 +259,25 @@ impl ControlInner for QtSplitted {
     fn on_added_to_container(&mut self, member: &mut MemberBase, control: &mut ControlBase, _parent: &dyn controls::Container, x: i32, y: i32, pw: u16, ph: u16) {
         control.coords = Some((x, y));
         self.measure(member, control, pw, ph);
-        self.update_splitter(control);
+        self.update_splitter(member, control);
         self.base.dirty = false;
         self.draw(member, control);
 
-        let self2: &mut Splitted = unsafe { utils::base_to_impl_mut(member) };
-        let (first_size, second_size) = self.children_sizes(control);
+        let (first_size, second_size) = self.children_sizes(member, control);
 
         unsafe {
             let handle = self.base.widget.handle_width();
             let margins = self.base.widget.contents_margins();
-            match self.layout_orientation() {
+            match self.orientation(member) {
                 layout::Orientation::Horizontal => {
                     let h = utils::coord_to_size(ph as i32 - margins.top() - margins.bottom());
+                    let self2: &mut Splitted = utils::base_to_impl_mut(member);
                     self.first.on_added_to_container(self2, margins.left() + 6, margins.top() + 6, first_size, h);
                     self.second.on_added_to_container(self2, margins.left() + first_size as i32 + handle + 6, margins.top() + 6, second_size, h);
                 }
                 layout::Orientation::Vertical => {
                     let w = utils::coord_to_size(pw as i32 - margins.left() - margins.right());
+                    let self2: &mut Splitted = utils::base_to_impl_mut(member);
                     self.first.on_added_to_container(self2, margins.left() + 6, margins.top() + 6, w, first_size);
                     self.second.on_added_to_container(self2, margins.left() + 6, margins.top() + first_size as i32 + handle + 6, w, second_size);
                 }
@@ -297,10 +313,10 @@ impl ControlInner for QtSplitted {
 }
 
 impl HasOrientationInner for QtSplitted {
-    fn layout_orientation(&self) -> layout::Orientation {
+    fn orientation(&self, _: &MemberBase) -> layout::Orientation {
         qorientation_to_orientation(unsafe { self.base.widget.as_ref().orientation() })
     }
-    fn set_layout_orientation(&mut self, _base: &mut MemberBase, orientation: layout::Orientation) {
+    fn set_orientation(&mut self, _base: &mut MemberBase, orientation: layout::Orientation) {
         unsafe { self.base.widget.set_orientation(orientation_to_qorientation(orientation)) };
         //self.update_children_orientation();
         self.base.invalidate();
@@ -425,10 +441,11 @@ impl MultiContainerInner for QtSplitted {
     }
 }
 
-/*#[allow(dead_code)]
-pub(crate) fn spawn() -> Box<controls::Control> {
-    Splitted::with_orientation(layout::Orientation::Vertical).into_control()
-}*/
+impl Spawnable for QtSplitted {
+    fn spawn() -> Box<dyn controls::Control> {
+        Self::with_content(super::text::Text::spawn(), super::text::Text::spawn(), layout::Orientation::Vertical).into_control()
+    }
+}
 
 fn splitter_moved(ll: &mut Splitted, position: i32) {
     use plygui_api::controls::{HasOrientation, HasSize};
@@ -436,7 +453,7 @@ fn splitter_moved(ll: &mut Splitted, position: i32) {
     if position < 1 {
         return;
     }
-    let orientation = ll.layout_orientation();
+    let orientation = HasOrientation::orientation(ll);
     let (width, height) = ll.size();
     let splitter = position as f32
         / match orientation {
@@ -455,12 +472,12 @@ fn splitter_moved(ll: &mut Splitted, position: i32) {
                 }
             }
         };
-    let (_, c, ll) = ll.as_base_parts_mut();
-    ll.as_inner_mut().splitter = splitter;
-    ll.as_inner_mut().update_children_layout(c);
+    let (m, c, ll) = ll.as_control_parts_mut();
+    ll.inner_mut().inner_mut().inner_mut().splitter = splitter;
+    ll.inner_mut().inner_mut().inner_mut().update_children_layout(m, c);
 }
 
-fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
+fn event_handler<O: controls::Splitted>(object: &mut QObject, event: &mut QEvent) -> bool {
     match unsafe { event.type_() } {
         QEventType::Resize => {
             if let Some(this) = cast_qobject_to_uimember_mut::<Splitted>(object) {
@@ -472,19 +489,11 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
                     );
                     size
                 };
-                this.as_inner_mut().base_mut().measured = size;
-                this.call_on_size(size.0, size.1);
-            }
-        }
-        QEventType::Destroy => {
-            if let Some(ll) = cast_qobject_to_uimember_mut::<Splitted>(object) {
-                unsafe {
-                    ptr::write(&mut ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget, CppBox::new(MutPtr::null()).unwrap());
-                }
+                this.inner_mut().base.measured = size;
+                this.call_on_size::<O>(size.0, size.1);
             }
         }
         _ => {}
     }
     false
 }
-default_impls_as!(Splitted);

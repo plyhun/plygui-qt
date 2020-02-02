@@ -5,7 +5,7 @@ use qt_widgets::QLayout;
 use qt_widgets::QSpacerItem;
 use qt_widgets::QFrame;
 
-pub type LinearLayout = Member<Control<MultiContainer<QtLinearLayout>>>;
+pub type LinearLayout = AMember<AControl<AContainer<AMultiContainer<ALinearLayout<QtLinearLayout>>>>>;
 
 #[repr(C)]
 pub struct QtLinearLayout {
@@ -14,33 +14,45 @@ pub struct QtLinearLayout {
     children: Vec<Box<dyn controls::Control>>,
 }
 
-impl LinearLayoutInner for QtLinearLayout {
-    fn with_orientation(orientation: layout::Orientation) -> Box<LinearLayout> {
-        let mut ll = Box::new(Member::with_inner(
-            Control::with_inner(
-                MultiContainer::with_inner(
-                    QtLinearLayout {
-                        base: common::QtControlBase::with_params(unsafe { QFrame::new_0a() }, event_handler),
-                        layout: unsafe { QBoxLayout::new_1a(orientation_to_box_direction(orientation)) },
-                        children: Vec::new(),
-                    },
-                    (),
-                ),
-                (),
-            ),
-            MemberFunctions::new(_as_any, _as_any_mut, _as_member, _as_member_mut),
-        ));
+impl<O: controls::LinearLayout> NewLinearLayoutInner<O> for QtLinearLayout {
+    fn with_uninit(ptr: &mut mem::MaybeUninit<O>) -> Self {
+        let mut ll = QtLinearLayout {
+            base: common::QtControlBase::with_params(unsafe { QFrame::new_0a() }, event_handler::<O>),
+            layout: unsafe { QBoxLayout::new_1a(QDirection::TopToBottom) },
+            children: Vec::new(),
+        };
         unsafe {
-            let ll1 = ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget.as_mut_raw_ptr() as *mut QFrame;
-            let layout = ll.as_inner_mut().as_inner_mut().as_inner_mut().layout.static_upcast_mut::<QLayout>();
+            let ll1 = ll.base.widget.as_mut_raw_ptr() as *mut QFrame;
+            let layout = ll.layout.static_upcast_mut::<QLayout>();
             //let layout = layout as *mut QLayout;
             (&mut *ll1).set_layout(layout.as_mut_ptr());
 
-            let ptr = ll.as_ref() as *const _ as u64;
-            let mut qo = ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget.static_upcast_mut::<QObject>();
+            let ptr = ptr as *const _ as u64;
+            let mut qo = ll.base.widget.static_upcast_mut::<QObject>();
             qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
         }
         ll
+    }
+}
+impl LinearLayoutInner for QtLinearLayout {
+    fn with_orientation(orientation: layout::Orientation) -> Box<dyn controls::LinearLayout> {
+        let mut b: Box<mem::MaybeUninit<LinearLayout>> = Box::new_uninit();
+        let mut ab = AMember::with_inner(
+            AControl::with_inner(
+                AContainer::with_inner(
+                    AMultiContainer::with_inner(
+                        ALinearLayout::with_inner(
+                            <Self as NewLinearLayoutInner<LinearLayout>>::with_uninit(b.as_mut()),
+                        )
+                    ),
+                )
+            ),
+        );
+        controls::HasOrientation::set_orientation(&mut ab, orientation);
+        unsafe {
+	        b.as_mut_ptr().write(ab);
+	        b.assume_init()
+        }
     }
 }
 
@@ -83,7 +95,7 @@ impl Drawable for QtLinearLayout {
     fn measure(&mut self, member: &mut MemberBase, control: &mut ControlBase, parent_width: u16, parent_height: u16) -> (u16, u16, bool) {
         use std::cmp::max;
 
-        let orientation = self.layout_orientation();
+        let orientation = self.orientation(member);
         let old_size = control.measured;
         let (lm, tm, rm, bm) = self.layout_margin(member).into();
         control.measured = match control.visibility {
@@ -173,7 +185,7 @@ impl ControlInner for QtLinearLayout {
         self.measure(member, control, pw, ph);
         self.base.dirty = false;
         self.draw(member, control);
-        let orientation = self.layout_orientation();
+        let orientation = self.orientation(member);
         
         let (mut x, mut y, spacing, pw, ph) = unsafe { 
             let margins = self.layout.contents_margins();
@@ -223,10 +235,10 @@ impl ControlInner for QtLinearLayout {
 }
 
 impl HasOrientationInner for QtLinearLayout {
-    fn layout_orientation(&self) -> layout::Orientation {
+    fn orientation(&self,_base: &MemberBase) -> layout::Orientation {
         box_direction_to_orientation(unsafe { (self.base.widget.as_ref().layout().as_ref().unwrap().dynamic_cast::<QBoxLayout>()).unwrap().direction() })
     }
-    fn set_layout_orientation(&mut self, _base: &mut MemberBase, orientation: layout::Orientation) {
+    fn set_orientation(&mut self, _base: &mut MemberBase, orientation: layout::Orientation) {
         unsafe { self.base.widget.layout().dynamic_cast_mut::<QBoxLayout>().set_direction(orientation_to_box_direction(orientation)); }
         self.base.invalidate();
     }
@@ -291,7 +303,7 @@ impl MultiContainerInner for QtLinearLayout {
     fn len(&self) -> usize {
         self.children.len()
     }
-    fn set_child_to(&mut self, _base: &mut MemberBase, index: usize, mut child: Box<dyn controls::Control>) -> Option<Box<dyn controls::Control>> {
+    fn set_child_to(&mut self, base: &mut MemberBase, index: usize, mut child: Box<dyn controls::Control>) -> Option<Box<dyn controls::Control>> {
         let old = if index < self.children.len() {
             mem::swap(&mut child, &mut self.children[index]);
             unsafe {
@@ -306,7 +318,7 @@ impl MultiContainerInner for QtLinearLayout {
             (self.base.widget.layout().dynamic_cast_mut::<QBoxLayout>()).insert_widget_2a(index as i32, MutPtr::from_raw(common::cast_control_to_qwidget_mut(self.children[index].as_mut()) as *mut QWidget));
         }
         
-        if self.children.iter().find(|child| match self.layout_orientation() {
+        if self.children.iter().find(|child| match self.orientation(base) {
                     layout::Orientation::Horizontal => child.layout_width() == layout::Size::MatchParent,
                     layout::Orientation::Vertical => child.layout_height() == layout::Size::MatchParent,
                 }).is_none() {
@@ -328,13 +340,13 @@ impl MultiContainerInner for QtLinearLayout {
         self.base.invalidate();
         old
     }
-    fn remove_child_from(&mut self, _base: &mut MemberBase, index: usize) -> Option<Box<dyn controls::Control>> {
+    fn remove_child_from(&mut self, base: &mut MemberBase, index: usize) -> Option<Box<dyn controls::Control>> {
         if index < self.children.len() {
             let mut item = self.children.remove(index);
             unsafe {
                 (self.base.widget.layout().dynamic_cast_mut::<QBoxLayout>()).remove_widget(MutPtr::from_raw(common::cast_control_to_qwidget_mut(item.as_mut())));
             }
-            if self.children.iter().find(|child| match self.layout_orientation() {
+            if self.children.iter().find(|child| match self.orientation(base) {
                         layout::Orientation::Horizontal => child.layout_width() == layout::Size::MatchParent,
                         layout::Orientation::Vertical => child.layout_height() == layout::Size::MatchParent,
                     }).is_none() {
@@ -385,14 +397,13 @@ fn orientation_to_box_direction(a: layout::Orientation) -> QDirection {
     }
 }
 
-#[allow(dead_code)]
-pub(crate) fn spawn() -> Box<dyn controls::Control> {
-    LinearLayout::with_orientation(layout::Orientation::Vertical).into_control()
+impl Spawnable for QtLinearLayout {
+    fn spawn() -> Box<dyn controls::Control> {
+        Self::with_orientation(layout::Orientation::Vertical).into_control()
+    }
 }
 
-default_impls_as!(LinearLayout);
-
-fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
+fn event_handler<O: controls::LinearLayout>(object: &mut QObject, event: &mut QEvent) -> bool {
     match unsafe { event.type_() } {
         QEventType::Resize => {
             if let Some(this) = cast_qobject_to_uimember_mut::<LinearLayout>(object) {
@@ -404,18 +415,8 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
                     );
                     size
                 };
-                this.as_inner_mut().base_mut().measured = size;
-                this.call_on_size(size.0, size.1);
-            }
-        }
-        QEventType::Destroy => {
-            if let Some(ll) = cast_qobject_to_uimember_mut::<LinearLayout>(object) {
-                unsafe {
-                    ptr::write(&mut ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget, CppBox::new(MutPtr::null()).unwrap());
-                }
-                unsafe {
-                    ptr::write(&mut ll.as_inner_mut().as_inner_mut().as_inner_mut().layout, CppBox::new(MutPtr::null()).unwrap());
-                }
+                this.inner_mut().base.measured = size;
+                this.call_on_size::<O>(size.0, size.1);
             }
         }
         _ => {}

@@ -4,11 +4,10 @@ use crate::window::Window;
 
 use qt_core::{QCoreApplication, QCoreApplicationArgs};
 use qt_core::QTimer;
-use qt_core::QString;
+//use qt_core::QString;
 use qt_gui::QGuiApplication;
 use qt_widgets::QApplication;
 
-use plygui_api::development;
 use plygui_api::{controls, types};
 
 use std::borrow::Cow;
@@ -16,7 +15,7 @@ use std::process::exit;
 
 const DEFAULT_FRAME_SLEEP_MS: u32 = 10;
 
-pub type Application = development::Application<QtApplication>;
+pub type Application = AApplication<QtApplication>;
 
 pub struct QtApplication {
     _args: QCoreApplicationArgs,
@@ -46,13 +45,13 @@ impl ApplicationInner for QtApplication {
 	fn set_frame_sleep(&mut self, value: u32) {
 		unsafe { self.timer.set_interval(value as i32) };
 	}
-    fn get() -> Box<Application> {
+    fn get() -> Box<dyn controls::Application> {
         let mut args = QCoreApplicationArgs::new();
         let (arg1, arg2) = args.get();
         let inner = unsafe { QApplication::new_2a(MutRef::from_raw(arg1).unwrap(), arg2) };
         unsafe { QGuiApplication::set_quit_on_last_window_closed(false) };
         //QCoreApplication::set_application_name(&String::from_std_str(name));
-        let mut app = Box::new(development::Application::with_inner(
+        let mut app = Box::new(AApplication::with_inner(
             QtApplication {
                 _args: args,
                 inner: inner,
@@ -61,11 +60,10 @@ impl ApplicationInner for QtApplication {
                 queue: Slot::new(move || {}),
                 trays: vec![],
             },
-            (),
         ));
         {
             let selfptr = app.as_ref() as *const _ as u64;
-            let app = app.as_inner_mut();
+            let app = app.inner_mut();
             app.set_frame_sleep(DEFAULT_FRAME_SLEEP_MS);
             app.queue = Slot::new(move || {
                 let mut frame_callbacks = 0;
@@ -94,14 +92,14 @@ impl ApplicationInner for QtApplication {
         use plygui_api::controls::HasNativeId;
 
         let w = super::window::QtWindow::with_params(title, size, menu);
-        self.windows.push(unsafe { w.native_id().into() });
+        self.windows.push(unsafe { QtId::from_outer(w.native_id()) });
         w
     }
     fn new_tray(&mut self, title: &str, menu: types::Menu) -> Box<dyn controls::Tray> {
         use plygui_api::controls::HasNativeId;
 
         let t = super::tray::QtTray::with_params(title, menu);
-        self.trays.push(unsafe { t.native_id().into() });
+        self.trays.push(unsafe { QtId::from_outer(t.native_id()) });
         t
     }
     fn remove_window(&mut self, id: Self::Id) {
@@ -130,7 +128,7 @@ impl ApplicationInner for QtApplication {
         while i >= 0 {
             let window = &mut self.windows[i as usize];
             if let Some(window) = common::cast_qobject_to_uimember_mut::<Window>(window) {
-                if !window.close(skip_on_close) {
+                if !controls::Closeable::close(window, skip_on_close) {
                     return false;
                 }
             }
@@ -142,7 +140,7 @@ impl ApplicationInner for QtApplication {
         while i >= 0 {
             let tray = &mut self.trays[i as usize];
             if let Some(tray) = common::cast_qobject_to_uimember_mut::<Tray>(tray) {
-                if !tray.close(skip_on_close) {
+                if !controls::Closeable::close(tray, skip_on_close) {
                     return false;
                 }
             }
@@ -151,7 +149,7 @@ impl ApplicationInner for QtApplication {
         self.maybe_exit()
     }
     fn find_member_mut(&mut self, arg: types::FindBy) -> Option<&mut dyn controls::Member> {
-        use crate::plygui_api::controls::{Member, Container};
+        use crate::plygui_api::controls::{Member};
 
         for window in self.windows.as_mut_slice() {
             if let Some(window) = common::cast_qobject_to_uimember_mut::<Window>(window) {
@@ -169,7 +167,7 @@ impl ApplicationInner for QtApplication {
                         }
                     }
                 }
-                let found = window.find_control_mut(arg.clone()).map(|control| control.as_member_mut());
+                let found = controls::Container::find_control_mut(window, arg.clone()).map(|control| control.as_member_mut());
                 if found.is_some() {
                     return found;
                 }
@@ -196,7 +194,7 @@ impl ApplicationInner for QtApplication {
         None
     }
     fn find_member(&self, arg: types::FindBy) -> Option<&dyn controls::Member> {
-        use crate::plygui_api::controls::{Member, Container};
+        use crate::plygui_api::controls::{Member};
 
         for window in self.windows.as_slice() {
             if let Some(window) = common::cast_qobject_to_uimember::<Window>(window) {
@@ -214,7 +212,7 @@ impl ApplicationInner for QtApplication {
                         }
                     }
                 }
-                let found = window.find_control(arg.clone()).map(|control| control.as_member());
+                let found = controls::Container::find_control(window, arg.clone()).map(|control| control.as_member());
                 if found.is_some() {
                     return found;
                 }

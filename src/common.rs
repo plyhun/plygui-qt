@@ -17,6 +17,7 @@ pub use qt_widgets::q_size_policy::Policy as QSizePolicy;
 pub use qt_widgets::QWidget;
 pub use qt_widgets::cpp_core::{CppBox, CppDeletable, DynamicCast, StaticUpcast, StaticDowncast, Ref, MutRef, Ptr, MutPtr};
 pub use std::ffi::CString;
+pub use std::borrow::Cow;
 pub use std::os::raw::c_void;
 pub use std::{cmp, marker, mem, ops, ptr, sync::mpsc};
 
@@ -46,11 +47,6 @@ impl From<QtId> for usize {
         a.0.as_ptr() as usize
     }
 }
-impl From<usize> for QtId {
-    fn from(a: usize) -> QtId {
-        QtId(ptr::NonNull::new(a as *mut QObject).unwrap())
-    }
-}
 impl cmp::PartialOrd for QtId {
     fn partial_cmp(&self, other: &QtId) -> Option<cmp::Ordering> {
         self.0.partial_cmp(&other.0)
@@ -73,7 +69,11 @@ impl ops::DerefMut for QtId {
         unsafe { self.0.as_mut() }
     }
 }
-impl NativeId for QtId {}
+impl NativeId for QtId {
+    unsafe fn from_outer(arg: usize) -> Self {
+        QtId(ptr::NonNull::new(arg as *mut QObject).unwrap())
+    }
+}
 
 #[repr(C)]
 pub struct QtControlBase<T: controls::Control + Sized, Q: StaticUpcast<QWidget> + CppDeletable> {
@@ -174,45 +174,45 @@ impl<T: controls::Control + Sized, Q: StaticUpcast<QWidget> + CppDeletable> QtCo
     }
     pub fn parent(&self) -> Option<&dyn controls::Member> {
         unsafe {
-            let ptr = self.widget.static_upcast().parent_widget().as_ptr().static_upcast::<QObject>().property(PROPERTY.as_ptr() as *const i8).as_raw_ptr();
-            if ptr.is_null() {
+            let mut qv = self.widget.static_upcast().parent_widget().as_ptr().static_upcast::<QObject>().property(PROPERTY.as_ptr() as *const i8);
+            if qv.as_mut_raw_ptr().is_null() {
                 None
             } else {
-                let m: &MemberBase = mem::transmute(ptr);
-                Some(m.as_member())
+                let ptr = qv.to_u_long_long_0a();
+                Some(mem::transmute::<usize, &MemberBase>(ptr as usize).as_member())
             }
         }
     }
     pub fn parent_mut(&mut self) -> Option<&mut dyn controls::Member> {
         unsafe {
-            let ptr = self.widget.static_upcast_mut().parent_widget().static_upcast_mut::<QObject>().property(PROPERTY.as_ptr() as *const i8).as_mut_raw_ptr();
-            if ptr.is_null() {
+            let qv = self.widget.static_upcast_mut().parent_widget().static_upcast_mut::<QObject>().property(PROPERTY.as_ptr() as *const i8);
+            if qv.as_raw_ptr().is_null() {
                 None
             } else {
-                let m: &mut MemberBase = mem::transmute(ptr);
-                Some(m.as_member_mut())
+                let ptr = qv.to_u_long_long_0a();
+                Some(mem::transmute::<usize, &mut MemberBase>(ptr as usize).as_member_mut())
             }
         }
     }
     pub fn root(&self) -> Option<&dyn controls::Member> {
         unsafe {
-            let ptr = self.widget.static_upcast().window().as_ptr().static_upcast::<QObject>().property(PROPERTY.as_ptr() as *const i8).as_raw_ptr();
-            if ptr.is_null() {
+            let mut qv = self.widget.static_upcast().window().as_ptr().static_upcast::<QObject>().property(PROPERTY.as_ptr() as *const i8);
+            if qv.as_mut_raw_ptr().is_null() {
                 None
             } else {
-                let m: &MemberBase = mem::transmute(ptr);
-                Some(m.as_member())
+                let ptr = qv.to_u_long_long_0a();
+                Some(mem::transmute::<usize, &MemberBase>(ptr as usize).as_member())
             }
         }
     }
     pub fn root_mut(&mut self) -> Option<&mut dyn controls::Member> {
         unsafe {
-            let ptr = self.widget.static_upcast_mut().window().static_upcast_mut::<QObject>().property(PROPERTY.as_ptr() as *const i8).as_mut_raw_ptr();
-            if ptr.is_null() {
+            let qv = self.widget.static_upcast_mut().window().static_upcast_mut::<QObject>().property(PROPERTY.as_ptr() as *const i8);
+            if qv.as_raw_ptr().is_null() {
                 None
             } else {
-                let m: &mut MemberBase = mem::transmute(ptr);
-                Some(m.as_member_mut())
+                let ptr = qv.to_u_long_long_0a();
+                Some(mem::transmute::<usize, &mut MemberBase>(ptr as usize).as_member_mut())
             }
         }
     }
@@ -235,11 +235,12 @@ where
     T: Sized,
 {
     unsafe {
-        let ptr = (&*object).property(PROPERTY.as_ptr() as *const i8).as_mut_raw_ptr();
-        if ptr.is_null() {
+        let mut qv = (&*object).property(PROPERTY.as_ptr() as *const i8);
+        if qv.as_mut_raw_ptr().is_null() {
             None
         } else {
-            Some(::std::mem::transmute(ptr))
+            let ptr = qv.to_u_long_long_0a();
+            Some(mem::transmute(ptr as usize))
         }
     }
 }
@@ -248,11 +249,12 @@ where
     T: Sized,
 {
     unsafe {
-        let ptr = (&*object).property(PROPERTY.as_ptr() as *const i8).as_raw_ptr();
-        if ptr.is_null() {
+        let qv = (&*object).property(PROPERTY.as_ptr() as *const i8);
+        if qv.as_raw_ptr().is_null() {
             None
         } else {
-            Some(::std::mem::transmute(ptr))
+            let ptr = qv.to_u_long_long_0a();
+            Some(mem::transmute(ptr as usize))
         }
     }
 }

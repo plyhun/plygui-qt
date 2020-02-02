@@ -6,7 +6,7 @@ use qt_core::WindowModality;
 
 use std::borrow::Cow;
 
-pub type Message = Member<QtMessage>;
+pub type Message = AMember<AMessage<QtMessage>>;
 
 #[repr(C)]
 pub struct QtMessage {
@@ -29,21 +29,22 @@ impl HasLabelInner for QtMessage {
 }
 
 impl MessageInner for QtMessage {
-    fn with_actions(content: types::TextContent, severity: types::MessageSeverity, actions: Vec<(String, callbacks::Action)>, parent: Option<&dyn controls::Member>) -> Box<Member<Self>> {
-        let mut message = Box::new(Member::with_inner(
-            QtMessage {
-                message: unsafe { QMessageBox::new() },
-                filter: CustomEventFilter::new(event_handler),
-                actions: actions,
-            },
-            MemberFunctions::new(_as_any, _as_any_mut, _as_member, _as_member_mut),
+    fn with_actions(content: types::TextContent, severity: types::MessageSeverity, actions: Vec<(String, callbacks::Action)>, parent: Option<&dyn controls::Member>) -> Box<dyn controls::Message> {
+        let mut message = Box::new(AMember::with_inner(
+            AMessage::with_inner(
+                QtMessage {
+                    message: unsafe { QMessageBox::new() },
+                    filter: CustomEventFilter::new(event_handler),
+                    actions: actions,
+                }
+            ),
         ));
         unsafe {
             let ptr = message.as_ref() as *const _ as u64;
-            (message.as_inner_mut().message.static_upcast_mut::<QObject>()).set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
+            (message.inner_mut().inner_mut().message.static_upcast_mut::<QObject>()).set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
         }
         unsafe {
-            let message = message.as_inner_mut();
+            let message = message.inner_mut().inner_mut();
             let mut qmessage = message.message.as_mut_ptr();
 
             match content {
@@ -121,5 +122,3 @@ fn severity_to_message_icon(severity: types::MessageSeverity) -> Icon {
 fn event_handler(_: &mut QObject, _: &mut QEvent) -> bool {
     false
 }
-
-default_impls_as!(Message);

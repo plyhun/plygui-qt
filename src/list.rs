@@ -3,20 +3,28 @@ use crate::common::{self, *};
 use qt_widgets::QListWidget;
 use qt_widgets::QListWidgetItem;
 
-pub type List = Member<Control<Adapter<QtList>>>;
+pub type List = AMember<AControl<AContainer<AAdapted<AList<QtList>>>>>;
 
 #[repr(C)]
 pub struct QtList {
     base: common::QtControlBase<List, QListWidget>,
     items: Vec<(Box<dyn controls::Control>, CppBox<QListWidgetItem>)>,
-    h_left_clicked: Slot<'static>,
+    h_left_clicked: (Option<callbacks::OnItemClick>, Slot<'static>),
 }
-
-impl ListInner for QtList {}
-
+impl ItemClickableInner for QtList {
+    fn item_click(&mut self, i: usize, item_view: &mut dyn controls::Control, _skip_callbacks: bool) {
+        let this = common::cast_qobject_to_uimember_mut::<List>(&mut self.base.as_qwidget_mut()).unwrap();
+        if let Some(ref mut callback) = self.h_left_clicked.0 {
+            (callback.as_mut())(this, i, item_view)
+        }
+    }
+    fn on_item_click(&mut self, cb: Option<callbacks::OnItemClick>) {
+        self.h_left_clicked.0 = cb;
+    }
+}
 impl QtList {
     fn add_item_inner(&mut self, base: &mut MemberBase, i: usize) {
-        let (member, control, adapter) = List::adapter_base_parts_mut(base);
+        let (member, control, adapter, _) = unsafe { List::adapter_base_parts_mut(base) };
         let (pw, ph) = control.measured;
         let this: &mut List = unsafe { utils::base_to_impl_mut(member) };
         
@@ -29,8 +37,8 @@ impl QtList {
         
         unsafe { 
             witem.set_size_hint(&widget.size_hint());
+            self.base.widget.insert_item_int_q_list_widget_item(i as i32, witem.as_mut_ptr()); 
             self.base.widget.set_item_widget(witem.as_mut_ptr(), widget);
-            self.base.widget.insert_item_int_q_list_widget_item(i as i32, witem); 
             widget.show();
         }
     }
@@ -45,7 +53,59 @@ impl QtList {
     }
 }
 
-impl AdapterViewInner for QtList {
+impl<O: controls::List> NewListInner<O> for QtList {
+    fn with_uninit(ptr: &mut mem::MaybeUninit<O>) -> Self {
+        let mut ll = QtList {
+            base: common::QtControlBase::with_params(unsafe { QListWidget::new_0a() }, event_handler::<O>),
+            items: Vec::new(),
+            h_left_clicked: (None, Slot::new(move || {})), // dummy
+        };
+        unsafe {
+            let ptr = ptr as *const _ as u64;
+            let obj = ll.base.widget.static_upcast_mut::<QObject>().as_mut_raw_ptr();
+            ll.h_left_clicked.1 = Slot::new(move || {
+                let this = cast_qobject_to_uimember_mut::<List>(&mut *obj).unwrap();
+                let clicked = this.inner().inner().inner().inner().inner().base.widget.current_item();
+                let i = this.inner().inner().inner().inner().inner().base.widget.row(clicked);
+                let (ref mut clicked,_) = this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().items.get_mut(i as usize).unwrap();
+                let this = cast_qobject_to_uimember_mut::<List>(&mut *obj).unwrap();
+                if let Some(ref mut cb) = this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().h_left_clicked.0 {
+                    let this = cast_qobject_to_uimember_mut::<O>(&mut *obj).unwrap();
+                    (cb.as_mut())(this, i as usize, clicked.as_mut());
+                }
+            });
+            ll.base.widget.item_clicked().connect(&ll.h_left_clicked.1);
+            let mut qo = ll.base.widget.static_upcast_mut::<QObject>();
+            qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
+        }
+        ll
+    }
+}
+impl ListInner for QtList {
+    fn with_adapter(adapter: Box<dyn types::Adapter>) -> Box<dyn controls::List> {
+        let len = adapter.len();
+        let mut b: Box<mem::MaybeUninit<List>> = Box::new_uninit();
+        let mut ab = AMember::with_inner(
+            AControl::with_inner(
+                AContainer::with_inner(
+                    AAdapted::with_inner(
+                        AList::with_inner(
+                            <Self as NewListInner<List>>::with_uninit(b.as_mut())
+                        ),
+                        adapter,
+                        &mut b,
+                    ),
+                )
+            ),
+        );
+        ab.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().items = Vec::with_capacity(len);
+        unsafe {
+	        b.as_mut_ptr().write(ab);
+	        b.assume_init()
+        }
+    }
+}
+impl AdaptedInner for QtList {
 	fn on_item_change(&mut self, base: &mut MemberBase, change: types::Change) {
 		match change {
             types::Change::Added(at) => {
@@ -59,41 +119,6 @@ impl AdapterViewInner for QtList {
         }
         self.base.invalidate();
 	}
-    fn with_adapter(adapter: Box<dyn types::Adapter>) -> Box<List> {
-        let mut ll = Box::new(Member::with_inner(
-            Control::with_inner(
-                Adapter::with_inner(
-                    QtList {
-                        base: common::QtControlBase::with_params(unsafe { QListWidget::new_0a() }, event_handler),
-                        items: Vec::new(),
-                        h_left_clicked: Slot::new(move || {}), // dummy
-                    },
-                    adapter,
-                ),
-                (),
-            ),
-            MemberFunctions::new(_as_any, _as_any_mut, _as_member, _as_member_mut),
-        ));
-        unsafe {
-            let ptr = ll.as_ref() as *const _ as u64;
-            let obj = ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget.static_upcast_mut::<QObject>().as_mut_raw_ptr();
-            ll.as_inner_mut().as_inner_mut().as_inner_mut().h_left_clicked = Slot::new(move || {
-                let this = cast_qobject_to_uimember_mut::<List>(&mut *obj).unwrap();
-                let clicked = this.as_inner().as_inner().as_inner().base.widget.current_item();
-                let i = this.as_inner().as_inner().as_inner().base.widget.row(clicked);
-                let (ref mut clicked,_) = this.as_inner_mut().as_inner_mut().as_inner_mut().items.get_mut(i as usize).unwrap();
-                let this = cast_qobject_to_uimember_mut::<List>(&mut *obj).unwrap();
-                if let Some(ref mut cb) = this.as_inner_mut().as_inner_mut().base_mut().on_item_click {
-                    let this = cast_qobject_to_uimember_mut::<List>(&mut *obj).unwrap();
-                    (cb.as_mut())(this, i as usize, clicked.as_mut());
-                }
-            });
-            ll.as_inner().as_inner().as_inner().base.widget.item_clicked().connect(&ll.as_inner().as_inner().as_inner().h_left_clicked);
-            let mut qo = ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget.static_upcast_mut::<QObject>();
-            qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
-        }
-        ll
-    }
 }
 
 impl Drop for QtList {
@@ -183,7 +208,7 @@ impl HasLayoutInner for QtList {
 
 impl ControlInner for QtList {
     fn on_added_to_container(&mut self, member: &mut MemberBase, _: &mut ControlBase, _parent: &dyn controls::Container, _x: i32, _y: i32, _pw: u16, _ph: u16) {
-        let (member, _, adapter) = List::adapter_base_parts_mut(member);
+        let (member, _, adapter, _) = unsafe { List::adapter_base_parts_mut(member) };
 
         for i in 0..adapter.adapter.len() {
             self.add_item_inner(member, i);
@@ -271,10 +296,13 @@ impl ContainerInner for QtList {
         None
     }
 }
+impl Spawnable for QtList {
+    fn spawn() -> Box<dyn controls::Control> {
+        Self::with_adapter(Box::new(types::imp::StringVecAdapter::<crate::imp::Text>::new())).into_control()
+    }
+}
 
-default_impls_as!(List);
-
-fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
+fn event_handler<O: controls::List>(object: &mut QObject, event: &mut QEvent) -> bool {
     match unsafe { event.type_() } {
         QEventType::Resize => {
             if let Some(this) = cast_qobject_to_uimember_mut::<List>(object) {
@@ -286,15 +314,8 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
                     );
                     size
                 };
-                this.as_inner_mut().base_mut().measured = size;
-                this.call_on_size(size.0, size.1);
-            }
-        }
-        QEventType::Destroy => {
-            if let Some(ll) = cast_qobject_to_uimember_mut::<List>(object) {
-                unsafe {
-                    ptr::write(&mut ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget, CppBox::new(MutPtr::null()).unwrap());
-                }
+                this.inner_mut().base.measured = size;
+                this.call_on_size::<O>(size.0, size.1);
             }
         }
         _ => {}

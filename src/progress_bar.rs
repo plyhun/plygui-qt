@@ -4,35 +4,43 @@ use qt_core::QRect;
 use qt_gui::QFontMetrics;
 use qt_widgets::QProgressBar;
 
-pub type ProgressBar = Member<Control<QtProgressBar>>;
+pub type ProgressBar = AMember<AControl<AProgressBar<QtProgressBar>>>;
 
 #[repr(C)]
 pub struct QtProgressBar {
     base: common::QtControlBase<ProgressBar, QProgressBar>,
 }
 
-impl ProgressBarInner for QtProgressBar {
-    fn with_progress(arg: types::Progress) -> Box<ProgressBar> {
-        use crate::plygui_api::controls::HasProgress;
-        
-        let mut pb = Box::new(Member::with_inner(
-            Control::with_inner(
-                QtProgressBar {
-                    base: common::QtControlBase::with_params(unsafe { QProgressBar::new_0a() }, event_handler),
-                },
-                (),
-            ),
-            MemberFunctions::new(_as_any, _as_any_mut, _as_member, _as_member_mut),
-        ));
+impl<O: controls::ProgressBar> NewProgressBarInner<O> for QtProgressBar {
+    fn with_uninit(ptr: &mut mem::MaybeUninit<O>) -> Self {
+        let mut pb = QtProgressBar {
+            base: common::QtControlBase::with_params(unsafe { QProgressBar::new_0a() }, event_handler::<O>),
+        };
         unsafe {
-            pb.as_inner_mut().as_inner_mut().base.widget.set_minimum(0);
-            pb.as_inner_mut().as_inner_mut().base.widget.set_text_visible(false);
-            let ptr = pb.as_ref() as *const _ as u64;
-            let mut qo = pb.as_inner_mut().as_inner_mut().base.widget.as_mut_ref().static_upcast_mut::<QObject>();
+            pb.base.widget.set_minimum(0);
+            pb.base.widget.set_text_visible(false);
+            let ptr = ptr as *const _ as u64;
+            let mut qo = pb.base.widget.as_mut_ref().static_upcast_mut::<QObject>();
             qo.set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
         }
-        pb.set_progress(arg);
         pb
+    }
+}
+impl ProgressBarInner for QtProgressBar {
+    fn with_progress(progress: types::Progress) -> Box<dyn controls::ProgressBar> {
+        let mut b: Box<mem::MaybeUninit<ProgressBar>> = Box::new_uninit();
+        let mut ab = AMember::with_inner(
+            AControl::with_inner(
+                AProgressBar::with_inner(
+                    <Self as NewProgressBarInner<ProgressBar>>::with_uninit(b.as_mut()),
+                )
+            ),
+        );
+        controls::HasProgress::set_progress(&mut ab, progress);
+        unsafe {
+	        b.as_mut_ptr().write(ab);
+	        b.assume_init()
+        }
     }
 }
 
@@ -176,13 +184,13 @@ impl Drawable for QtProgressBar {
         self.base.invalidate();
     }
 }
-
-#[allow(dead_code)]
-pub(crate) fn spawn() -> Box<dyn controls::Control> {
-    ProgressBar::with_progress(types::Progress::None).into_control()
+impl Spawnable for QtProgressBar {
+    fn spawn() -> Box<dyn controls::Control> {
+        Self::with_progress(types::Progress::None).into_control()
+    }
 }
 
-fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
+fn event_handler<O: controls::ProgressBar>(object: &mut QObject, event: &mut QEvent) -> bool {
     match unsafe { event.type_() } {
         QEventType::Resize => {
             if let Some(this) = cast_qobject_to_uimember_mut::<ProgressBar>(object) {
@@ -194,19 +202,11 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
                     );
                     size
                 };
-                this.as_inner_mut().base_mut().measured = size;
-                this.call_on_size(size.0, size.1);
-            }
-        }
-        QEventType::Destroy => {
-            if let Some(ll) = cast_qobject_to_uimember_mut::<ProgressBar>(object) {
-                unsafe {
-                    ptr::write(&mut ll.as_inner_mut().as_inner_mut().base.widget, CppBox::new(MutPtr::null()).unwrap());
-                }
+                this.inner_mut().base.measured = size;
+                this.call_on_size::<O>(size.0, size.1);
             }
         }
         _ => {}
     }
     false
 }
-default_impls_as!(ProgressBar);

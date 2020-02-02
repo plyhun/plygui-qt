@@ -4,7 +4,7 @@ use qt_core::{AlignmentFlag, AspectRatioMode};
 use qt_core::QRect;
 use qt_widgets::QLabel;
 
-pub type Image = Member<Control<QtImage>>;
+pub type Image = AMember<AControl<AImage<QtImage>>>;
 
 #[repr(C)]
 pub struct QtImage {
@@ -15,28 +15,38 @@ pub struct QtImage {
     content: image::DynamicImage,
 }
 
-impl ImageInner for QtImage {
-    fn with_content(content: image::DynamicImage) -> Box<dyn controls::Image> {
-        let mut i = Box::new(Member::with_inner(
-            Control::with_inner(
-                QtImage {
-                    base: QtControlBase::with_params(unsafe { QLabel::new() }, event_handler),
-                    scale: types::ImageScalePolicy::FitCenter,
-                    pixmap: unsafe { CppBox::new(MutPtr::null()).unwrap() },
-                    content: content,
-                },
-                (),
-            ),
-            MemberFunctions::new(_as_any, _as_any_mut, _as_member, _as_member_mut),
-        ));
-
+impl<O: controls::Image> NewImageInner<O> for QtImage {
+    fn with_uninit(ptr: &mut mem::MaybeUninit<O>) -> Self {
+        let mut i = QtImage {
+            base: QtControlBase::with_params(unsafe { QLabel::new() }, event_handler::<O>),
+            scale: types::ImageScalePolicy::FitCenter,
+            pixmap: unsafe { QPixmap::new() },
+            content: image::DynamicImage::new_luma8(0,0),
+        };
         unsafe {
-            let ptr = i.as_ref() as *const _ as u64;
-            let mut qo = i.as_inner_mut().as_inner_mut().base.widget.static_upcast_mut::<QObject>().as_mut_ptr();
+            let ptr = ptr as *const _ as u64;
+            let mut qo = i.base.widget.static_upcast_mut::<QObject>().as_mut_ptr();
             qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
-            i.as_inner_mut().as_inner_mut().base.widget.set_alignment(AlignmentFlag::AlignCenter.into());
+            i.base.widget.set_alignment(AlignmentFlag::AlignCenter.into());
         }
         i
+    }
+}
+impl ImageInner for QtImage {
+    fn with_content(content: image::DynamicImage) -> Box<dyn controls::Image> {
+        let mut b: Box<mem::MaybeUninit<Image>> = Box::new_uninit();
+        let mut ab = AMember::with_inner(
+            AControl::with_inner(
+                AImage::with_inner(
+                    <Self as NewImageInner<Image>>::with_uninit(b.as_mut())
+                )
+            ),
+        );
+        unsafe {
+	        ptr::write(&mut ab.inner_mut().inner_mut().inner_mut().content, content);
+            b.as_mut_ptr().write(ab);
+	        b.assume_init()
+        }
     }
     fn set_scale(&mut self, _: &mut MemberBase, policy: types::ImageScalePolicy) {
         if self.scale != policy {
@@ -73,7 +83,17 @@ impl HasLayoutInner for QtImage {
         self.base.invalidate();
     }
 }
-
+impl HasImageInner for QtImage {
+    fn image(&self, _: &MemberBase) -> Cow<image::DynamicImage> {
+        Cow::Borrowed(&self.content)
+    }
+    fn set_image(&mut self, base: &mut MemberBase, arg0: Cow<image::DynamicImage>) {
+        self.content = arg0.into_owned();
+        let this = unsafe { utils::base_to_impl_mut::<Image>(base) };
+        let (_, control, _) = Image::as_control_parts_mut(this);
+        self.update_image(control);
+    }
+}
 impl ControlInner for QtImage {
     fn on_added_to_container(&mut self, member: &mut MemberBase, control: &mut ControlBase, _parent: &dyn controls::Container, x: i32, y: i32, pw: u16, ph: u16) {
         control.coords = Some((x, y));
@@ -160,12 +180,13 @@ impl Drawable for QtImage {
     }
 }
 
-/*#[allow(dead_code)]
-pub(crate) fn spawn() -> Box<controls::Control> {
-    Image::with_content("").into_control()
-}*/
+impl Spawnable for QtImage {
+    fn spawn() -> Box<dyn controls::Control> {
+        Self::with_content(image::DynamicImage::new_luma8(0, 0)).into_control()
+    }
+}
 
-fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
+fn event_handler<O: controls::Image>(object: &mut QObject, event: &mut QEvent) -> bool {
     match unsafe { event.type_() } {
         QEventType::Resize => {
             if let Some(this) = cast_qobject_to_uimember_mut::<Image>(object) {
@@ -176,24 +197,15 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
                     	utils::coord_to_size(size.size().height())
                     )
                 };
-                this.as_inner_mut().base_mut().measured = size;
+                this.inner_mut().base.measured = size;
                 {
-                	let (_, c, this) = this.as_base_parts_mut();
-                	this.update_image(c);
+                	let (_, c, this) = this.as_control_parts_mut();
+                	this.inner_mut().update_image(c);
                 }
-	            this.call_on_size(size.0, size.1);
-            }
-        }
-        QEventType::Destroy => {
-            if let Some(ll) = cast_qobject_to_uimember_mut::<Image>(object) {
-                unsafe {
-                    ptr::write(&mut ll.as_inner_mut().as_inner_mut().base.widget, CppBox::new(MutPtr::null()).unwrap());
-                }
+	            this.call_on_size::<O>(size.0, size.1);
             }
         }
         _ => {}
     }
     false
 }
-
-default_impls_as!(Image);

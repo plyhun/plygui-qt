@@ -5,7 +5,7 @@ use qt_widgets::QMainWindow;
 
 use std::borrow::Cow;
 
-pub type Window = Member<SingleContainer<::plygui_api::development::Window<QtWindow>>>;
+pub type Window = AMember<AContainer<ASingleContainer<AWindow<QtWindow>>>>;
 
 #[repr(C)]
 pub struct QtWindow {
@@ -39,38 +39,32 @@ impl CloseableInner for QtWindow {
         self.on_close = callback;
     }
 }
-
 impl WindowInner for QtWindow {
-    fn with_params(title: &str, start_size: types::WindowStartSize, menu: types::Menu) -> Box<Member<SingleContainer<::plygui_api::development::Window<Self>>>> {
-        use plygui_api::controls::HasLabel;
-
-        let window = unsafe { QMainWindow::new_0a() };
-
-        let mut window = Box::new(Member::with_inner(
-            SingleContainer::with_inner(
-                ::plygui_api::development::Window::with_inner(
-                    QtWindow {
-                        window: window,
-                        child: None,
-                        filter: CustomEventFilter::new(event_handler),
-                        menu: if menu.is_some() { Vec::new() } else { Vec::with_capacity(0) },
-                        on_close: None,
-                        skip_callbacks: false,
-                    },
-                    (),
+    fn with_params<S: AsRef<str>>(title: S, start_size: types::WindowStartSize, menu: types::Menu) -> Box<dyn controls::Window> {
+        let mut window = Box::new(AMember::with_inner(
+            AContainer::with_inner(
+                ASingleContainer::with_inner(
+                    AWindow::with_inner(
+                        QtWindow {
+                            window: unsafe { QMainWindow::new_0a() },
+                            child: None,
+                            filter: CustomEventFilter::new(event_handler::<Window>),
+                            menu: if menu.is_some() { Vec::new() } else { Vec::with_capacity(0) },
+                            on_close: None,
+                            skip_callbacks: false,
+                        },
+                    ),
                 ),
-                (),
-            ),
-            MemberFunctions::new(_as_any, _as_any_mut, _as_member, _as_member_mut),
+            )
         ));
         unsafe {
             let ptr = window.as_ref() as *const _ as u64;
-            (window.as_inner_mut().as_inner_mut().as_inner_mut().window.static_upcast_mut::<QObject>()).set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
+            (window.inner_mut().inner_mut().inner_mut().inner_mut().window.static_upcast_mut::<QObject>()).set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
         }
-        window.set_label(title.into());
+        controls::HasLabel::set_label(window.as_mut(), title.as_ref().into());
         {
             let selfptr = window.as_ref() as *const _ as u64;
-            let window = window.as_inner_mut().as_inner_mut().as_inner_mut();
+            let window = window.inner_mut().inner_mut().inner_mut().inner_mut();
             unsafe {
                 let (w, h) = match start_size {
                     types::WindowStartSize::Exact(w, h) => (w as i32, h as i32),
@@ -92,7 +86,7 @@ impl WindowInner for QtWindow {
                 fn slot_spawn(id: usize, selfptr: *mut Window) -> Slot<'static> {
                     Slot::new(move || {
                         let window = unsafe { &mut *selfptr };
-                        if let Some((a, _)) = window.as_inner_mut().as_inner_mut().as_inner_mut().menu.get_mut(id) {
+                        if let Some((a, _)) = window.inner_mut().inner_mut().inner_mut().inner_mut().menu.get_mut(id) {
                             let window = unsafe { &mut *selfptr };
                             (a.as_mut())(window);
                         }
@@ -103,7 +97,7 @@ impl WindowInner for QtWindow {
                     .as_any_mut()
                     .downcast_mut::<crate::application::Application>()
                     .unwrap()
-                    .as_inner_mut();
+                    .inner_mut();
 
                 for item in items.drain(..) {
                     match item {
@@ -229,20 +223,20 @@ impl Drop for QtWindow {
     }
 }
 
-fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
+fn event_handler<O: controls::Window>(object: &mut QObject, event: &mut QEvent) -> bool {
     match unsafe { event.type_() } {
         QEventType::Resize => {
             if let Some(window) = common::cast_qobject_to_uimember_mut::<Window>(object) {
-                let (width, height) = window.as_inner().as_inner().as_inner().size();
+                let (width, height) = window.inner().inner().inner().size();
                 window.call_on_size(width, height);
             }
         }
         QEventType::Close => {
             let object2 = object as *mut QObject;
             if let Some(w) = common::cast_qobject_to_uimember_mut::<Window>(object) {
-                if !w.as_inner_mut().as_inner_mut().as_inner_mut().skip_callbacks {
-                    if let Some(ref mut on_close) = w.as_inner_mut().as_inner_mut().as_inner_mut().on_close {
-                        let w2 = common::cast_qobject_to_uimember_mut::<Window>(unsafe { &mut *object2 }).unwrap();
+                if !w.inner_mut().inner_mut().inner_mut().inner_mut().skip_callbacks {
+                    if let Some(ref mut on_close) = w.inner_mut().inner_mut().inner_mut().inner_mut().on_close {
+                        let w2 = common::cast_qobject_to_uimember_mut::<O>(unsafe { &mut *object2 }).unwrap();
                         if !(on_close.as_mut())(w2) {
                             unsafe { event.ignore(); }
                             return true;
@@ -254,13 +248,11 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
                     .as_any_mut()
                     .downcast_mut::<crate::application::Application>()
                     .unwrap()
-                    .as_inner_mut()
-                    .remove_window(unsafe { w.as_inner_mut().as_inner_mut().as_inner_mut().native_id() });
+                    .inner_mut()
+                    .remove_window(unsafe { w.inner_mut().inner_mut().inner_mut().native_id() });
             }
         }
         _ => {}
     }
     false
 }
-
-default_impls_as!(Window);

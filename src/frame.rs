@@ -8,7 +8,7 @@ use qt_widgets::QLayout;
 
 use std::borrow::Cow;
 
-pub type Frame = Member<Control<SingleContainer<QtFrame>>>;
+pub type Frame = AMember<AControl<AContainer<ASingleContainer<AFrame<QtFrame>>>>>;
 
 #[repr(C)]
 pub struct QtFrame {
@@ -17,33 +17,44 @@ pub struct QtFrame {
     label_size: CppBox<QRect>,
     child: Option<Box<dyn controls::Control>>,
 }
-
-impl FrameInner for QtFrame {
-    fn with_label(label: &str) -> Box<Frame> {
-        let mut fr = Box::new(Member::with_inner(
-            Control::with_inner(
-                SingleContainer::with_inner(
-                    QtFrame {
-                        base: common::QtControlBase::with_params(unsafe { QGroupBox::from_q_string(&QString::from_std_str(label)) }, event_handler),
-                        layout: unsafe { QStackedLayout::new() },
-                        label_size: unsafe { QRect::from_4_int(0, 0, 0, 0) },
-                        child: None,
-                    },
-                    (),
-                ),
-                (),
-            ),
-            MemberFunctions::new(_as_any, _as_any_mut, _as_member, _as_member_mut),
-        ));
+impl<O: controls::Frame> NewFrameInner<O> for QtFrame {
+    fn with_uninit(ptr: &mut mem::MaybeUninit<O>) -> Self {
+        let mut fr = QtFrame {
+            base: common::QtControlBase::with_params(unsafe { QGroupBox::from_q_string(&QString::new()) }, event_handler::<O>),
+            layout: unsafe { QStackedLayout::new() },
+            label_size: unsafe { QRect::from_4_int(0, 0, 0, 0) },
+            child: None,
+        };
         unsafe {
-            let fr1 = fr.as_inner_mut().as_inner_mut().as_inner_mut().base.widget.as_mut_raw_ptr();
-            (&mut *fr1).set_layout(fr.as_inner_mut().as_inner_mut().as_inner_mut().layout.as_mut_ptr().static_upcast_mut::<QLayout>());
+            let fr1 = fr.base.widget.as_mut_raw_ptr();
+            (&mut *fr1).set_layout(fr.layout.as_mut_ptr().static_upcast_mut::<QLayout>());
 
-            let ptr = fr.as_ref() as *const _ as u64;
-            let qo: &mut QObject = &mut fr.as_inner_mut().as_inner_mut().as_inner_mut().base.widget.as_mut_ptr().static_upcast_mut();
+            let ptr = ptr as *mut _ as u64;
+            let qo: &mut QObject = &mut fr.base.widget.as_mut_ptr().static_upcast_mut();
             qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
         }
         fr
+    }
+}
+impl FrameInner for QtFrame {
+    fn with_label<S: AsRef<str>>(label: S) -> Box<dyn controls::Frame> {
+        let mut b: Box<mem::MaybeUninit<Frame>> = Box::new_uninit();
+        let mut ab = AMember::with_inner(
+            AControl::with_inner(
+                AContainer::with_inner(
+                    ASingleContainer::with_inner(
+                        AFrame::with_inner(
+                            <Self as NewFrameInner<Frame>>::with_uninit(b.as_mut())
+                        )
+                    ),
+                ),
+            ),
+        );
+        controls::HasLabel::set_label(&mut ab, label.as_ref().into());
+        unsafe {
+	        b.as_mut_ptr().write(ab);
+	        b.assume_init()
+        }
     }
 }
 impl Drop for QtFrame {
@@ -302,12 +313,13 @@ impl Drawable for QtFrame {
     }
 }
 
-#[allow(dead_code)]
-pub(crate) fn spawn() -> Box<dyn controls::Control> {
-    Frame::with_label("").into_control()
+impl Spawnable for QtFrame {
+    fn spawn() -> Box<dyn controls::Control> {
+        Self::with_label("").into_control()
+    }
 }
 
-fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
+fn event_handler<O: controls::Frame>(object: &mut QObject, event: &mut QEvent) -> bool {
     match unsafe { event.type_() } {
         QEventType::Resize => {
             if let Some(this) = cast_qobject_to_uimember_mut::<Frame>(object) {
@@ -317,18 +329,8 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
                     	utils::coord_to_size(size.size().width()), 
                     	utils::coord_to_size(size.size().height())
                     );
-                    this.as_inner_mut().base_mut().measured = size;
-                    this.call_on_size(size.0, size.1);
-                }
-            }
-        }
-        QEventType::Destroy => {
-            if let Some(ll) = cast_qobject_to_uimember_mut::<Frame>(object) {
-                unsafe {
-                    ptr::write(&mut ll.as_inner_mut().as_inner_mut().as_inner_mut().base.widget, CppBox::new(MutPtr::null()).unwrap());
-                }
-                unsafe {
-                    ptr::write(&mut ll.as_inner_mut().as_inner_mut().as_inner_mut().layout, CppBox::new(MutPtr::null()).unwrap());
+                    this.inner_mut().base.measured = size;
+                    this.call_on_size::<O>(size.0, size.1);
                 }
             }
         }
@@ -336,5 +338,3 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
     }
     false
 }
-
-default_impls_as!(Frame);
