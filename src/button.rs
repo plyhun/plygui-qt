@@ -13,7 +13,7 @@ pub type Button = AMember<AControl<AButton<QtButton>>>;
 pub struct QtButton {
     base: common::QtControlBase<Button, QPushButton>,
     skip_callbacks: bool,
-    h_left_clicked: (bool, Slot<'static>),
+    h_left_clicked: (Option<callbacks::OnClick>, Slot<'static>),
 }
 
 impl HasLabelInner for QtButton {
@@ -31,19 +31,7 @@ impl HasLabelInner for QtButton {
 
 impl ClickableInner for QtButton {
     fn on_click(&mut self, cb: Option<callbacks::OnClick>) {
-        self.h_left_clicked.0 = cb.is_some();
-        if cb.is_some() {
-            let mut cb = cb.unwrap();
-            let ptr = unsafe { self.base.widget.static_upcast_mut::<QObject>() }.as_mut_raw_ptr();
-            self.h_left_clicked.1.set(move || unsafe {
-                let button = cast_qobject_to_uimember_mut::<Button>(&mut *ptr).unwrap();
-                if !button.inner().inner().inner().skip_callbacks {
-                    (cb.as_mut())(button);
-                }
-            });
-        } else {
-            self.h_left_clicked.1.clear();
-        }
+        self.h_left_clicked.0 = cb;
     }
     fn click(&mut self, skip_callbacks: bool) {
         self.skip_callbacks = skip_callbacks;
@@ -52,13 +40,21 @@ impl ClickableInner for QtButton {
 }
 impl<O: controls::Button> NewButtonInner<O> for QtButton {
     fn with_uninit(ptr: &mut mem::MaybeUninit<O>) -> Self {
+        let ptr = ptr as *mut _ as u64;
         let mut btn = QtButton {
             base: common::QtControlBase::with_params(unsafe { QPushButton::new() }, event_handler::<O>),
             skip_callbacks: false,
-            h_left_clicked: (false, Slot::new(move || {})),
+            h_left_clicked: (None, Slot::new(move || unsafe {
+                let button: &mut Button = mem::transmute(ptr);
+                if !button.inner().inner().inner().skip_callbacks {
+                    if let Some(ref mut cb) = button.inner_mut().inner_mut().inner_mut().h_left_clicked.0 {
+                        let o: &mut O = mem::transmute(ptr);
+                        (cb.as_mut())(o);
+                    }
+                }
+            })),
         };
         unsafe {
-            let ptr = ptr as *mut _ as u64;
             btn.base.widget.released().connect(&btn.h_left_clicked.1);
             let qo: &mut QObject = &mut btn.base.widget.as_mut_ref().static_upcast_mut();
             qo.set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
@@ -143,6 +139,12 @@ impl MemberInner for QtButton {}
 
 impl Drawable for QtButton {
     fn draw(&mut self, member: &mut MemberBase, control: &mut ControlBase) {
+        if let layout::Size::WrapContent = control.layout.width {
+            unsafe { self.base.widget.set_minimum_width(control.measured.0 as i32); } 
+        }
+        if let layout::Size::WrapContent = control.layout.height {
+            unsafe { self.base.widget.set_minimum_height(control.measured.1 as i32); }
+        }
         self.base.draw(member, control);
     }
     fn measure(&mut self, _: &mut MemberBase, control: &mut ControlBase, parent_width: u16, parent_height: u16) -> (u16, u16, bool) {
@@ -191,7 +193,6 @@ impl Spawnable for QtButton {
         Self::with_label("").into_control()
     }
 }
-
 fn event_handler<O: controls::Button>(object: &mut QObject, event: &mut QEvent) -> bool {
     match unsafe { event.type_() } {
         QEventType::Resize => {
@@ -202,7 +203,20 @@ fn event_handler<O: controls::Button>(object: &mut QObject, event: &mut QEvent) 
                 	utils::coord_to_size(size.size().height())
                 )};
                 this.inner_mut().base.measured = size;
+                if let layout::Size::WrapContent = this.inner_mut().base.layout.width {
+                    unsafe { this.inner_mut().inner_mut().inner_mut().base.widget.set_minimum_width(size.0 as i32); } 
+                }
+                if let layout::Size::WrapContent = this.inner_mut().base.layout.height {
+                    unsafe { this.inner_mut().inner_mut().inner_mut().base.widget.set_minimum_height(size.1 as i32); }
+                }
                 this.call_on_size::<O>(size.0, size.1);
+            }
+        }
+        QEventType::Destroy => {
+            if let Some(ll) = cast_qobject_to_uimember_mut::<Button>(object) {
+                unsafe {
+                    ptr::write(&mut ll.inner_mut().inner_mut().inner_mut().base.widget, common::MaybeCppBox::None);
+                }
             }
         }
         _ => {}

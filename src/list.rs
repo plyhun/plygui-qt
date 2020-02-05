@@ -120,19 +120,6 @@ impl AdaptedInner for QtList {
         self.base.invalidate();
 	}
 }
-
-impl Drop for QtList {
-    fn drop(&mut self) {
-        let mut qo = unsafe { self.base.widget.static_upcast_mut::<QObject>() };
-        if let Some(self2) = common::cast_qobject_to_uimember_mut::<List>(&mut qo) {
-            for (mut child,_) in self.items.drain(..) {
-                child.on_removed_from_container(self2);
-            }
-        }
-        //self.layout = CppBox::default();
-    }
-}
-
 impl HasNativeIdInner for QtList {
     type Id = common::QtId;
 
@@ -203,6 +190,12 @@ impl HasLayoutInner for QtList {
             let margins = self.base.widget.contents_margins();
             layout::BoundarySize::Distinct(margins.left(), margins.top(), margins.right(), margins.bottom())
         }
+    }
+}
+
+impl Drop for QtList {
+    fn drop(&mut self) {
+        self.items.clear();
     }
 }
 
@@ -316,6 +309,13 @@ fn event_handler<O: controls::List>(object: &mut QObject, event: &mut QEvent) ->
                 };
                 this.inner_mut().base.measured = size;
                 this.call_on_size::<O>(size.0, size.1);
+            }
+        }
+        QEventType::Destroy => {
+            if let Some(ll) = cast_qobject_to_uimember_mut::<List>(object) {
+                unsafe {
+                    ptr::write(&mut ll.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().base.widget, common::MaybeCppBox::None);
+                }
             }
         }
         _ => {}

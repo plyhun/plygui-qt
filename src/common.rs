@@ -29,6 +29,43 @@ lazy_static! {
     pub static ref PROPERTY: CString = CString::new("plygui").unwrap();
 }
 
+pub enum MaybeCppBox<T: CppDeletable> {
+    None,
+    Some(CppBox<T>)
+}
+impl<T: CppDeletable> MaybeCppBox<T> {
+    pub fn as_ref(&self) -> Ref<T> {
+        match self {
+            MaybeCppBox::None => panic!("CppBox is empty!"),
+            MaybeCppBox::Some(ref cppb) => unsafe { cppb.as_ref() }
+        }
+    }
+    pub fn as_mut(&mut self) -> MutRef<T> {
+        match self {
+            MaybeCppBox::None => panic!("CppBox is empty!"),
+            MaybeCppBox::Some(ref mut cppb) => unsafe { cppb.as_mut_ref() }
+        }
+    }
+}
+impl<T: CppDeletable> ops::Deref for MaybeCppBox<T> {
+    type Target = CppBox<T>;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            MaybeCppBox::None => panic!("CppBox is empty!"),
+            MaybeCppBox::Some(ref cppb) => cppb
+        }
+    }
+}
+impl<T: CppDeletable> ops::DerefMut for MaybeCppBox<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            MaybeCppBox::None => panic!("CppBox is empty!"),
+            MaybeCppBox::Some(ref mut cppb) => cppb
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct QtId(ptr::NonNull<QObject>);
 
@@ -77,7 +114,7 @@ impl NativeId for QtId {
 
 #[repr(C)]
 pub struct QtControlBase<T: controls::Control + Sized, Q: StaticUpcast<QWidget> + CppDeletable> {
-    pub widget: CppBox<Q>,
+    pub widget: MaybeCppBox<Q>,
     pub dirty: bool,
 
     event_callback: CppBox<CustomEventFilter>,
@@ -91,15 +128,15 @@ impl<T: controls::Control + Sized, Q: StaticUpcast<QWidget> + CppDeletable> QtCo
         F: for<'a, 'b> FnMut(&'a mut QObject, &'b mut QEvent) -> bool,
     {
         let mut base = QtControlBase {
-            widget: widget,
+            widget: MaybeCppBox::Some(widget),
             event_callback: CustomEventFilter::new(event_callback),
             dirty: true,
             _marker: marker::PhantomData,
         };
         unsafe {
-            base.widget.static_upcast_mut().set_minimum_size_2a(1, 1);
+            base.widget.as_mut().static_upcast_mut().set_minimum_size_2a(1, 1);
             let filter: *mut QObject = base.event_callback.static_upcast_mut::<QObject>().as_mut_raw_ptr();
-            let qobject: &mut QObject = &mut base.widget.static_upcast_mut();
+            let qobject: &mut QObject = &mut base.widget.as_mut().static_upcast_mut();
             qobject.install_event_filter(filter);
         }
         base
@@ -235,7 +272,7 @@ where
     T: Sized,
 {
     unsafe {
-        let mut qv = (&*object).property(PROPERTY.as_ptr() as *const i8);
+        let mut qv = object.property(PROPERTY.as_ptr() as *const i8);
         if qv.as_mut_raw_ptr().is_null() {
             None
         } else {
@@ -249,7 +286,7 @@ where
     T: Sized,
 {
     unsafe {
-        let qv = (&*object).property(PROPERTY.as_ptr() as *const i8);
+        let qv = object.property(PROPERTY.as_ptr() as *const i8);
         if qv.as_raw_ptr().is_null() {
             None
         } else {

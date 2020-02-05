@@ -13,7 +13,7 @@ pub type Frame = AMember<AControl<AContainer<ASingleContainer<AFrame<QtFrame>>>>
 #[repr(C)]
 pub struct QtFrame {
     base: common::QtControlBase<Frame, QGroupBox>,
-    layout: CppBox<QStackedLayout>,
+    layout: common::MaybeCppBox<QStackedLayout>,
     label_size: CppBox<QRect>,
     child: Option<Box<dyn controls::Control>>,
 }
@@ -21,7 +21,7 @@ impl<O: controls::Frame> NewFrameInner<O> for QtFrame {
     fn with_uninit(ptr: &mut mem::MaybeUninit<O>) -> Self {
         let mut fr = QtFrame {
             base: common::QtControlBase::with_params(unsafe { QGroupBox::from_q_string(&QString::new()) }, event_handler::<O>),
-            layout: unsafe { QStackedLayout::new() },
+            layout: common::MaybeCppBox::Some(unsafe { QStackedLayout::new() }),
             label_size: unsafe { QRect::from_4_int(0, 0, 0, 0) },
             child: None,
         };
@@ -59,13 +59,7 @@ impl FrameInner for QtFrame {
 }
 impl Drop for QtFrame {
     fn drop(&mut self) {
-        let qo = unsafe { self.base.widget.static_upcast_mut::<QObject>().as_mut_raw_ptr() };
-        let mut child = self.child.take();
-        if let Some(ref mut child) = child {
-            if let Some(self2) = common::cast_qobject_to_uimember_mut::<Frame>(unsafe { &mut *qo }) {
-                child.on_removed_from_container(self2);
-            }
-        }
+        let _ = self.child.take();
     }
 }
 impl SingleContainerInner for QtFrame {
@@ -331,6 +325,14 @@ fn event_handler<O: controls::Frame>(object: &mut QObject, event: &mut QEvent) -
                     );
                     this.inner_mut().base.measured = size;
                     this.call_on_size::<O>(size.0, size.1);
+                }
+            }
+        }
+        QEventType::Destroy => {
+            if let Some(ll) = cast_qobject_to_uimember_mut::<Frame>(object) {
+                unsafe {
+                    ptr::write(&mut ll.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().base.widget, common::MaybeCppBox::None);
+                    ptr::write(&mut ll.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().layout, common::MaybeCppBox::None);
                 }
             }
         }

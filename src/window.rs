@@ -229,6 +229,9 @@ fn event_handler<O: controls::Window>(object: &mut QObject, event: &mut QEvent) 
             if let Some(window) = common::cast_qobject_to_uimember_mut::<Window>(object) {
                 let (width, height) = window.inner().inner().inner().size();
                 window.call_on_size(width, height);
+                if let Some(ref mut child) = window.inner_mut().inner_mut().inner_mut().inner_mut().child {
+                    child.measure(width as u16, height as u16);
+                }
             }
         }
         QEventType::Close => {

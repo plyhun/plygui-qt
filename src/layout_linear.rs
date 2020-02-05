@@ -10,7 +10,7 @@ pub type LinearLayout = AMember<AControl<AContainer<AMultiContainer<ALinearLayou
 #[repr(C)]
 pub struct QtLinearLayout {
     base: common::QtControlBase<LinearLayout, QFrame>,
-    layout: CppBox<QBoxLayout>,
+    layout: common::MaybeCppBox<QBoxLayout>,
     children: Vec<Box<dyn controls::Control>>,
 }
 
@@ -18,7 +18,7 @@ impl<O: controls::LinearLayout> NewLinearLayoutInner<O> for QtLinearLayout {
     fn with_uninit(ptr: &mut mem::MaybeUninit<O>) -> Self {
         let mut ll = QtLinearLayout {
             base: common::QtControlBase::with_params(unsafe { QFrame::new_0a() }, event_handler::<O>),
-            layout: unsafe { QBoxLayout::new_1a(QDirection::TopToBottom) },
+            layout: common::MaybeCppBox::Some(unsafe { QBoxLayout::new_1a(QDirection::TopToBottom) }),
             children: Vec::new(),
         };
         unsafe {
@@ -58,12 +58,7 @@ impl LinearLayoutInner for QtLinearLayout {
 
 impl Drop for QtLinearLayout {
     fn drop(&mut self) {
-        let qo = unsafe { self.base.widget.static_upcast_mut::<QObject>().as_mut_raw_ptr() };
-        if let Some(self2) = common::cast_qobject_to_uimember_mut::<LinearLayout>(unsafe { &mut *qo }) {
-            for mut child in self.children.drain(..) {
-                child.on_removed_from_container(self2);
-            }
-        }
+        self.children.clear();
     }
 }
 
@@ -331,7 +326,7 @@ impl MultiContainerInner for QtLinearLayout {
         } else {
             unsafe {
                 let stretch = self.layout.item_at(self.layout.count()-1);
-                if !stretch.is_null() && (stretch.dynamic_cast::<QSpacerItem>()).is_null() {
+                if !stretch.is_null() && !(stretch.dynamic_cast::<QSpacerItem>()).is_null() {
                     self.layout.remove_item(stretch);
                 }
             }
@@ -359,7 +354,7 @@ impl MultiContainerInner for QtLinearLayout {
             } else {
                 unsafe {
                     let stretch = self.layout.item_at(self.layout.count()-1);
-                    if !stretch.is_null() && (stretch.dynamic_cast::<QSpacerItem>()).is_null() {
+                    if !stretch.is_null() && !(stretch.dynamic_cast::<QSpacerItem>()).is_null() {
                         self.layout.remove_item(stretch);
                     }
                 }
@@ -417,6 +412,14 @@ fn event_handler<O: controls::LinearLayout>(object: &mut QObject, event: &mut QE
                 };
                 this.inner_mut().base.measured = size;
                 this.call_on_size::<O>(size.0, size.1);
+            }
+        }
+        QEventType::Destroy => {
+            if let Some(ll) = cast_qobject_to_uimember_mut::<LinearLayout>(object) {
+                unsafe {
+                    ptr::write(&mut ll.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().base.widget, common::MaybeCppBox::None);
+                    ptr::write(&mut ll.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().layout, common::MaybeCppBox::None);
+                }
             }
         }
         _ => {}

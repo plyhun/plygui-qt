@@ -206,6 +206,13 @@ fn event_handler<O: controls::ProgressBar>(object: &mut QObject, event: &mut QEv
                 this.call_on_size::<O>(size.0, size.1);
             }
         }
+        QEventType::Destroy => {
+            if let Some(ll) = cast_qobject_to_uimember_mut::<ProgressBar>(object) {
+                unsafe {
+                    ptr::write(&mut ll.inner_mut().inner_mut().inner_mut().base.widget, common::MaybeCppBox::None);
+                }
+            }
+        }
         _ => {}
     }
     false

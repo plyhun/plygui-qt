@@ -135,16 +135,6 @@ impl QtSplitted {
     }
 }
 
-impl Drop for QtSplitted {
-    fn drop(&mut self) {
-        let mut qo = unsafe { self.base.widget.static_upcast_mut::<QObject>() };
-        if let Some(self2) = common::cast_qobject_to_uimember_mut::<Splitted>(&mut *qo) {
-            self.first.on_removed_from_container(self2);
-            self.second.on_removed_from_container(self2);
-        }
-    }
-}
-
 impl HasNativeIdInner for QtSplitted {
     type Id = common::QtId;
 
@@ -491,6 +481,13 @@ fn event_handler<O: controls::Splitted>(object: &mut QObject, event: &mut QEvent
                 };
                 this.inner_mut().base.measured = size;
                 this.call_on_size::<O>(size.0, size.1);
+            }
+        }
+        QEventType::Destroy => {
+            if let Some(ll) = cast_qobject_to_uimember_mut::<Splitted>(object) {
+                unsafe {
+                    ptr::write(&mut ll.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().base.widget, common::MaybeCppBox::None);
+                }
             }
         }
         _ => {}
