@@ -175,9 +175,17 @@ fn event_handler<O: controls::Text>(object: &mut QObject, event: &mut QEvent) ->
                     	utils::coord_to_size(size.size().width()), 
                     	utils::coord_to_size(size.size().height())
                     );
+                    this.inner_mut().base.measured = size;
+                    if let layout::Size::WrapContent = this.inner_mut().base.layout.width {
+                        this.inner_mut().inner_mut().inner_mut().base.widget.set_minimum_width(size.0 as i32);  
+                        this.inner_mut().inner_mut().inner_mut().base.widget.set_maximum_width(size.0 as i32); 
+                    }
+                    if let layout::Size::WrapContent = this.inner_mut().base.layout.height {
+                        this.inner_mut().inner_mut().inner_mut().base.widget.set_minimum_height(size.1 as i32); 
+                        this.inner_mut().inner_mut().inner_mut().base.widget.set_maximum_height(size.1 as i32); 
+                    }
                     size
                 };
-                this.inner_mut().base.measured = size;
                 this.call_on_size::<O>(size.0, size.1);
             }
         }

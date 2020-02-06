@@ -99,10 +99,16 @@ impl ListInner for QtList {
             ),
         );
         ab.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().items = Vec::with_capacity(len);
-        unsafe {
+        let mut bb = unsafe {
 	        b.as_mut_ptr().write(ab);
 	        b.assume_init()
+        };
+        let (member, _, adapter, list) = unsafe { List::adapter_base_parts_mut(&mut bb.base) };
+
+        for i in 0..adapter.adapter.len() {
+            list.inner_mut().add_item_inner(member, i);
         }
+        bb
     }
 }
 impl AdaptedInner for QtList {
@@ -200,11 +206,10 @@ impl Drop for QtList {
 }
 
 impl ControlInner for QtList {
-    fn on_added_to_container(&mut self, member: &mut MemberBase, _: &mut ControlBase, _parent: &dyn controls::Container, _x: i32, _y: i32, _pw: u16, _ph: u16) {
-        let (member, _, adapter, _) = unsafe { List::adapter_base_parts_mut(member) };
-
-        for i in 0..adapter.adapter.len() {
-            self.add_item_inner(member, i);
+    fn on_added_to_container(&mut self, member: &mut MemberBase, _: &mut ControlBase, _parent: &dyn controls::Container, _x: i32, _y: i32, pw: u16, ph: u16) {
+        let self2: &mut List = unsafe { utils::base_to_impl_mut(member) };
+        for (child,_) in self.items.iter_mut() {
+            child.on_added_to_container(self2, 0, 0, pw, ph);
         }
     }
     fn on_removed_from_container(&mut self, member: &mut MemberBase, _control: &mut ControlBase, _parent: &dyn controls::Container) {

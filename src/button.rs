@@ -163,7 +163,7 @@ impl Drawable for QtButton {
                             let fm = QFontMetrics::new_1a(font);
                             label_size = fm.bounding_rect_q_string(&self.base.widget.as_ref().text());
                         }
-                        label_size.width() + 16
+                        label_size.width()
                     }
                 };
                 let h = match control.layout.height {
@@ -174,7 +174,7 @@ impl Drawable for QtButton {
                             let fm = QFontMetrics::new_1a(font);
                             label_size = fm.bounding_rect_q_string(&self.base.widget.as_ref().text());
                         }
-                        label_size.height() + 16
+                        label_size.height()
                     }
                 };
                 (cmp::max(0, w) as u16, cmp::max(0, h) as u16)
@@ -197,18 +197,23 @@ fn event_handler<O: controls::Button>(object: &mut QObject, event: &mut QEvent) 
     match unsafe { event.type_() } {
         QEventType::Resize => {
             if let Some(this) = cast_qobject_to_uimember_mut::<Button>(object) {
-                let size = unsafe { &mut MutRef::from_raw_ref(event).static_downcast_mut::<QResizeEvent>() };
-                let size = unsafe {(
-                	utils::coord_to_size(size.size().width()), 
-                	utils::coord_to_size(size.size().height())
-                )};
-                this.inner_mut().base.measured = size;
-                if let layout::Size::WrapContent = this.inner_mut().base.layout.width {
-                    unsafe { this.inner_mut().inner_mut().inner_mut().base.widget.set_minimum_width(size.0 as i32); } 
-                }
-                if let layout::Size::WrapContent = this.inner_mut().base.layout.height {
-                    unsafe { this.inner_mut().inner_mut().inner_mut().base.widget.set_minimum_height(size.1 as i32); }
-                }
+                let size = unsafe { 
+                    let size = &mut MutRef::from_raw_ref(event).static_downcast_mut::<QResizeEvent>();
+                    let size = (
+                    	utils::coord_to_size(size.size().width()), 
+                    	utils::coord_to_size(size.size().height())
+                    );
+                    this.inner_mut().base.measured = size;
+                    if let layout::Size::WrapContent = this.inner_mut().base.layout.width {
+                        this.inner_mut().inner_mut().inner_mut().base.widget.set_minimum_width(size.0 as i32);  
+                        this.inner_mut().inner_mut().inner_mut().base.widget.set_maximum_width(size.0 as i32); 
+                    }
+                    if let layout::Size::WrapContent = this.inner_mut().base.layout.height {
+                        this.inner_mut().inner_mut().inner_mut().base.widget.set_minimum_height(size.1 as i32); 
+                        this.inner_mut().inner_mut().inner_mut().base.widget.set_maximum_height(size.1 as i32); 
+                    }
+                    size
+                };
                 this.call_on_size::<O>(size.0, size.1);
             }
         }

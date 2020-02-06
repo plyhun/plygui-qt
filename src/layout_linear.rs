@@ -331,7 +331,28 @@ impl MultiContainerInner for QtLinearLayout {
                 }
             }
         }
-        
+        if self.root().is_some() {
+            let o = self.orientation(base);
+            let (_, control, _) = unsafe { LinearLayout::control_base_parts_mut(base) };
+            let (x,y,w,h) = match o {
+                layout::Orientation::Horizontal => {
+                    let mut x = 0;
+                    for i in 0..index {
+                        x += self.child_at(i).unwrap().size().0 as i32;
+                    }
+                    (x, 0, utils::coord_to_size(control.measured.0 as i32 - x), control.measured.1)
+                },
+                layout::Orientation::Vertical => {
+                    let mut y = 0;
+                    for i in 0..index {
+                        y += self.child_at(i).unwrap().size().1 as i32;
+                    }
+                    (0, y, control.measured.0, utils::coord_to_size(control.measured.1 as i32 - y))
+                },
+            };
+            let self2: &mut LinearLayout = unsafe { utils::base_to_impl_mut(base) };
+            self.child_at_mut(index).unwrap().on_added_to_container(self2, x, y, w, h);
+        }
         self.base.invalidate();
         old
     }
@@ -360,6 +381,10 @@ impl MultiContainerInner for QtLinearLayout {
                 }
             }
             self.base.invalidate();
+            if self.root().is_some() {
+            let self2: &mut LinearLayout = unsafe { utils::base_to_impl_mut(base) };
+                item.on_removed_from_container(self2);
+            }
             Some(item)
         } else {
             None
