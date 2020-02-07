@@ -65,9 +65,8 @@ impl HasProgressInner for QtProgressBar {
 	        let mut progress_bar = self.base.widget.as_mut_ref();
             match arg {
             	types::Progress::Value(current, total) => {
-            	    let total = if total > 0 { 0 } else { 1 };
             	    progress_bar.set_inverted_appearance(false);
-            	    progress_bar.set_range(0, total);
+            	    progress_bar.set_range(0, total as i32);
             		progress_bar.set_value(current as i32);
             	},
             	types::Progress::Undefined => {

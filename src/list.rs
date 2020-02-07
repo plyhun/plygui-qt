@@ -199,12 +199,6 @@ impl HasLayoutInner for QtList {
     }
 }
 
-impl Drop for QtList {
-    fn drop(&mut self) {
-        self.items.clear();
-    }
-}
-
 impl ControlInner for QtList {
     fn on_added_to_container(&mut self, member: &mut MemberBase, _: &mut ControlBase, _parent: &dyn controls::Container, _x: i32, _y: i32, pw: u16, ph: u16) {
         let self2: &mut List = unsafe { utils::base_to_impl_mut(member) };

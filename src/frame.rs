@@ -57,11 +57,6 @@ impl FrameInner for QtFrame {
         }
     }
 }
-impl Drop for QtFrame {
-    fn drop(&mut self) {
-        let _ = self.child.take();
-    }
-}
 impl SingleContainerInner for QtFrame {
     fn set_child(&mut self, _base: &mut MemberBase, mut child: Option<Box<dyn controls::Control>>) -> Option<Box<dyn controls::Control>> {
         mem::swap(&mut child, &mut self.child);
