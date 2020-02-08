@@ -15,10 +15,10 @@ pub struct QtLinearLayout {
 }
 
 impl<O: controls::LinearLayout> NewLinearLayoutInner<O> for QtLinearLayout {
-    fn with_uninit(ptr: &mut mem::MaybeUninit<O>) -> Self {
+    fn with_uninit_params(ptr: &mut mem::MaybeUninit<O>, orientation: layout::Orientation) -> Self {
         let mut ll = QtLinearLayout {
             base: common::QtControlBase::with_params(unsafe { QFrame::new_0a() }, event_handler::<O>),
-            layout: common::MaybeCppBox::Some(unsafe { QBoxLayout::new_1a(QDirection::TopToBottom) }),
+            layout: common::MaybeCppBox::Some(unsafe { QBoxLayout::new_1a(orientation_to_box_direction(orientation)) }),
             children: Vec::new(),
         };
         unsafe {
@@ -37,18 +37,17 @@ impl<O: controls::LinearLayout> NewLinearLayoutInner<O> for QtLinearLayout {
 impl LinearLayoutInner for QtLinearLayout {
     fn with_orientation(orientation: layout::Orientation) -> Box<dyn controls::LinearLayout> {
         let mut b: Box<mem::MaybeUninit<LinearLayout>> = Box::new_uninit();
-        let mut ab = AMember::with_inner(
+        let ab = AMember::with_inner(
             AControl::with_inner(
                 AContainer::with_inner(
                     AMultiContainer::with_inner(
                         ALinearLayout::with_inner(
-                            <Self as NewLinearLayoutInner<LinearLayout>>::with_uninit(b.as_mut()),
+                            <Self as NewLinearLayoutInner<LinearLayout>>::with_uninit_params(b.as_mut(), orientation),
                         )
                     ),
                 )
             ),
         );
-        controls::HasOrientation::set_orientation(&mut ab, orientation);
         unsafe {
 	        b.as_mut_ptr().write(ab);
 	        b.assume_init()
