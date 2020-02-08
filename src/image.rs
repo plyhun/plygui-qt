@@ -16,12 +16,12 @@ pub struct QtImage {
 }
 
 impl<O: controls::Image> NewImageInner<O> for QtImage {
-    fn with_uninit(ptr: &mut mem::MaybeUninit<O>) -> Self {
+    fn with_uninit_params(ptr: &mut mem::MaybeUninit<O>, content: image::DynamicImage) -> Self {
         let mut i = QtImage {
             base: QtControlBase::with_params(unsafe { QLabel::new() }, event_handler::<O>),
             scale: types::ImageScalePolicy::FitCenter,
             pixmap: unsafe { QPixmap::new() },
-            content: image::DynamicImage::new_luma8(0,0),
+            content: content,
         };
         unsafe {
             let ptr = ptr as *const _ as u64;
@@ -35,16 +35,15 @@ impl<O: controls::Image> NewImageInner<O> for QtImage {
 impl ImageInner for QtImage {
     fn with_content(content: image::DynamicImage) -> Box<dyn controls::Image> {
         let mut b: Box<mem::MaybeUninit<Image>> = Box::new_uninit();
-        let mut ab = AMember::with_inner(
+        let ab = AMember::with_inner(
             AControl::with_inner(
                 AImage::with_inner(
-                    <Self as NewImageInner<Image>>::with_uninit(b.as_mut())
+                    <Self as NewImageInner<Image>>::with_uninit_params(b.as_mut(), content)
                 )
             ),
         );
         unsafe {
-	        ptr::write(&mut ab.inner_mut().inner_mut().inner_mut().content, content);
-            b.as_mut_ptr().write(ab);
+	        b.as_mut_ptr().write(ab);
 	        b.assume_init()
         }
     }
