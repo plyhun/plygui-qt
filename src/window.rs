@@ -5,11 +5,11 @@ use qt_widgets::QMainWindow;
 
 use std::borrow::Cow;
 
-pub type Window = AMember<AContainer<ASingleContainer<AWindow<QtWindow>>>>;
+pub type Window = AMember<AContainer<ASingleContainer<ACloseable<AWindow<QtWindow>>>>>;
 
 #[repr(C)]
 pub struct QtWindow {
-    window: CppBox<QMainWindow>,
+    window: common::MaybeCppBox<QMainWindow>,
     child: Option<Box<dyn controls::Control>>,
     filter: CppBox<CustomEventFilter>,
     menu: Vec<(callbacks::Action, Slot<'static>)>,
@@ -38,91 +38,99 @@ impl CloseableInner for QtWindow {
     fn on_close(&mut self, callback: Option<callbacks::OnClose>) {
         self.on_close = callback;
     }
+    fn application<'a>(&'a self, base: &'a MemberBase) -> &'a dyn controls::Application {
+        unsafe { utils::base_to_impl::<Window>(base) }.inner().inner().inner().application_impl::<crate::application::Application>()
+    }
+    fn application_mut<'a>(&'a mut self, base: &'a mut MemberBase) -> &'a mut dyn controls::Application {
+        unsafe { utils::base_to_impl_mut::<Window>(base) }.inner_mut().inner_mut().inner_mut().application_impl_mut::<crate::application::Application>()
+    }
+}
+impl<O: controls::Window> NewWindowInner<O> for QtWindow {
+    fn with_uninit_params(u: &mut mem::MaybeUninit<O>, app: &mut dyn controls::Application, title: &str, start_size: types::WindowStartSize, menu: types::Menu) -> Self {
+   		let selfptr = u as *mut _ as *mut Window;
+   		let mut w = QtWindow {
+            window: common::MaybeCppBox::Some(unsafe { QMainWindow::new_0a() }),
+            child: None,
+            filter: CustomEventFilter::new(event_handler::<Window>),
+            menu: if menu.is_some() { Vec::new() } else { Vec::with_capacity(0) },
+            on_close: None,
+            skip_callbacks: false,
+        };
+   		unsafe {
+            w.window.static_upcast_mut::<QObject>().set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(selfptr as u64));
+            w.window.set_window_title(&QString::from_std_str(&title));
+            let (ww, hh) = match start_size {
+                types::WindowStartSize::Exact(w, h) => (w as i32, h as i32),
+                types::WindowStartSize::Fullscreen => {
+                    let screen = QApplication::desktop().screen_geometry();
+                    (screen.width(), screen.height())
+                }
+            };
+            w.window.resize_2a(ww, hh);
+            w.window.set_size_policy_2a(QSizePolicy::Ignored, QSizePolicy::Ignored);
+            w.window.set_minimum_size_2a(1, 1);
+            let filter = w.filter.static_upcast_mut::<QObject>();
+            let mut qobject = w.window.static_upcast_mut::<QObject>();
+            qobject.install_event_filter(filter);
+        }
+        if let Some(mut items) = menu {
+            let mut menu_bar = unsafe { w.window.menu_bar() };
+
+            fn slot_spawn(id: usize, selfptr: *mut Window) -> Slot<'static> {
+                Slot::new(move || {
+                    let window = unsafe { &mut *selfptr };
+                    if let Some((a, _)) = window.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().menu.get_mut(id) {
+                        let window = unsafe { &mut *selfptr };
+                        (a.as_mut())(window);
+                    }
+                })
+            }
+            for item in items.drain(..) {
+                match item {
+                    types::MenuItem::Action(label, action, _) => {
+                        let id = w.menu.len();
+                        let action = (action, slot_spawn(id, selfptr));
+                        unsafe { 
+                            let qaction = menu_bar.add_action_1a(QString::from_std_str(label).as_ref());
+                            qaction.triggered().connect(&app.as_any().downcast_ref::<crate::application::Application>().unwrap().inner().queue);
+                        }
+                        w.menu.push(action);
+                    }
+                    types::MenuItem::Sub(label, items, _) => {
+                        let mut submenu = unsafe { menu_bar.add_menu_q_string(&QString::from_std_str(label)) };
+                        common::make_menu(&mut submenu, items, &mut w.menu, slot_spawn, selfptr as *mut Window);
+                    }
+                    types::MenuItem::Delimiter => {
+                        unsafe { menu_bar.add_separator(); }
+                    }
+                }
+            }
+        }
+        w
+    }
 }
 impl WindowInner for QtWindow {
-    fn with_params<S: AsRef<str>>(title: S, start_size: types::WindowStartSize, menu: types::Menu) -> Box<dyn controls::Window> {
-        let mut window = Box::new(AMember::with_inner(
+    fn with_params<S: AsRef<str>>(app: &mut dyn controls::Application, title: S, start_size: types::WindowStartSize, menu: types::Menu) -> Box<dyn controls::Window> {
+        let app = app.as_any_mut().downcast_mut::<crate::application::Application>().unwrap();
+        let mut b: Box<mem::MaybeUninit<Window>> = Box::new_uninit();
+        let ab = AMember::with_inner(
             AContainer::with_inner(
-                ASingleContainer::with_inner(
-                    AWindow::with_inner(
-                        QtWindow {
-                            window: unsafe { QMainWindow::new_0a() },
-                            child: None,
-                            filter: CustomEventFilter::new(event_handler::<Window>),
-                            menu: if menu.is_some() { Vec::new() } else { Vec::with_capacity(0) },
-                            on_close: None,
-                            skip_callbacks: false,
-                        },
-                    ),
-                ),
-            )
-        ));
-        unsafe {
-            let ptr = window.as_ref() as *const _ as u64;
-            (window.inner_mut().inner_mut().inner_mut().inner_mut().window.static_upcast_mut::<QObject>()).set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
-        }
-        controls::HasLabel::set_label(window.as_mut(), title.as_ref().into());
-        {
-            let selfptr = window.as_ref() as *const _ as u64;
-            let window = window.inner_mut().inner_mut().inner_mut().inner_mut();
-            unsafe {
-                let (w, h) = match start_size {
-                    types::WindowStartSize::Exact(w, h) => (w as i32, h as i32),
-                    types::WindowStartSize::Fullscreen => {
-                        let screen = QApplication::desktop().screen_geometry();
-                        (screen.width(), screen.height())
-                    }
-                };
-                window.window.resize_2a(w, h);
-                window.window.set_size_policy_2a(QSizePolicy::Ignored, QSizePolicy::Ignored);
-                window.window.set_minimum_size_2a(1, 1);
-                let filter = window.filter.static_upcast_mut::<QObject>();
-                let mut qobject = window.window.static_upcast_mut::<QObject>();
-                qobject.install_event_filter(filter);
-            }
-            if let Some(mut items) = menu {
-                let mut menu_bar = unsafe { window.window.menu_bar() };
-
-                fn slot_spawn(id: usize, selfptr: *mut Window) -> Slot<'static> {
-                    Slot::new(move || {
-                        let window = unsafe { &mut *selfptr };
-                        if let Some((a, _)) = window.inner_mut().inner_mut().inner_mut().inner_mut().menu.get_mut(id) {
-                            let window = unsafe { &mut *selfptr };
-                            (a.as_mut())(window);
-                        }
-                    })
-                }
-                let mut app = crate::application::Application::get().unwrap();
-                let app = app
-                    .as_any_mut()
-                    .downcast_mut::<crate::application::Application>()
-                    .unwrap()
-                    .inner_mut();
-
-                for item in items.drain(..) {
-                    match item {
-                        types::MenuItem::Action(label, action, _) => {
-                            let id = window.menu.len();
-                            let action = (action, slot_spawn(id, selfptr as *mut Window));
-                            unsafe { 
-                                let qaction = menu_bar.add_action_1a(QString::from_std_str(label).as_ref());
-                                qaction.triggered().connect(&app.queue);
-                            }
-                            window.menu.push(action);
-                        }
-                        types::MenuItem::Sub(label, items, _) => {
-                            let mut submenu = unsafe { menu_bar.add_menu_q_string(&QString::from_std_str(label)) };
-                            common::make_menu(&mut submenu, items, &mut window.menu, slot_spawn, selfptr as *mut Window);
-                        }
-                        types::MenuItem::Delimiter => {
-                            unsafe { menu_bar.add_separator(); }
-                        }
-                    }
-                }
-            }
-            unsafe { window.window.show(); }
-        }
-        window
+	            ASingleContainer::with_inner(
+	                ACloseable::with_inner(
+    	                AWindow::with_inner(
+    	                    <Self as NewWindowInner<Window>>::with_uninit_params(b.as_mut(), app, title.as_ref(), start_size, menu),
+    	                ),
+    	                app
+	                )
+	            )
+            ),
+        );
+        let mut w = unsafe {
+	        b.as_mut_ptr().write(ab);
+	        b.assume_init()
+        };
+        unsafe { w.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().window.show(); }
+        w
     }
     fn size(&self) -> (u16, u16) {
         unsafe {
@@ -200,8 +208,8 @@ impl ContainerInner for QtWindow {
 impl HasNativeIdInner for QtWindow {
     type Id = common::QtId;
 
-    unsafe fn native_id(&self) -> Self::Id {
-        QtId::from(self.window.static_upcast::<QObject>().as_raw_ptr() as *mut QObject)
+    fn native_id(&self) -> Self::Id {
+        QtId::from(unsafe { self.window.static_upcast::<QObject>() }.as_raw_ptr() as *mut QObject)
     }
 }
 impl HasSizeInner for QtWindow {
@@ -228,8 +236,8 @@ fn event_handler<O: controls::Window>(object: &mut QObject, event: &mut QEvent) 
         QEventType::Resize => {
             if let Some(window) = common::cast_qobject_to_uimember_mut::<Window>(object) {
                 let (width, height) = window.inner().inner().inner().size();
-                window.call_on_size(width, height);
-                if let Some(ref mut child) = window.inner_mut().inner_mut().inner_mut().inner_mut().child {
+                window.call_on_size::<O>(width, height);
+                if let Some(ref mut child) = window.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().child {
                     child.measure(width as u16, height as u16);
                 }
             }
@@ -237,8 +245,10 @@ fn event_handler<O: controls::Window>(object: &mut QObject, event: &mut QEvent) 
         QEventType::Close => {
             let object2 = object as *mut QObject;
             if let Some(w) = common::cast_qobject_to_uimember_mut::<Window>(object) {
-                if !w.inner_mut().inner_mut().inner_mut().inner_mut().skip_callbacks {
-                    if let Some(ref mut on_close) = w.inner_mut().inner_mut().inner_mut().inner_mut().on_close {
+                use crate::plygui_api::controls::Member;
+                
+                if !w.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().skip_callbacks {
+                    if let Some(ref mut on_close) = w.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().on_close {
                         let w2 = common::cast_qobject_to_uimember_mut::<O>(unsafe { &mut *object2 }).unwrap();
                         if !(on_close.as_mut())(w2) {
                             unsafe { event.ignore(); }
@@ -246,13 +256,19 @@ fn event_handler<O: controls::Window>(object: &mut QObject, event: &mut QEvent) 
                         }
                     }
                 }
-                crate::application::Application::get()
-                    .unwrap()
-                    .as_any_mut()
-                    .downcast_mut::<crate::application::Application>()
-                    .unwrap()
-                    .inner_mut()
-                    .remove_window(unsafe { w.inner_mut().inner_mut().inner_mut().native_id() });
+                let id = w.id();
+                let app = w.inner_mut().inner_mut().inner_mut().application_impl_mut::<crate::application::Application>();
+                let _ = app.base.sender().send((move |a: &mut dyn controls::Application| {
+                    a.as_any_mut().downcast_mut::<crate::application::Application>().unwrap().base.windows.retain(|w| w.id() != id);
+                    false
+                }).into());
+            }
+        }
+        QEventType::Destroy => {
+            if let Some(w) = cast_qobject_to_uimember_mut::<Window>(object) {
+                unsafe {
+                    ptr::write(&mut w.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().window, common::MaybeCppBox::None);
+                }
             }
         }
         _ => {}

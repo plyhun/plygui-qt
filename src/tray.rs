@@ -7,17 +7,29 @@ use qt_gui::QIcon;
 
 use std::borrow::Cow;
 
-pub type Tray = AMember<ATray<QtTray>>;
+pub type Tray = AMember<ACloseable<ATray<QtTray>>>;
 
 #[repr(C)]
 pub struct QtTray {
-    tray: CppBox<QSystemTrayIcon>,
-    filter: CppBox<CustomEventFilter>,
+    tray: common::MaybeCppBox<QSystemTrayIcon>,
+    filter: common::MaybeCppBox<CustomEventFilter>,
     menu: Option<(CppBox<QMenu>, Vec<(callbacks::Action, Slot<'static>)>)>,
     on_close: Option<callbacks::OnClose>,
     skip_callbacks: bool,
 }
-
+impl QtTray {
+    fn set_image_inner(&mut self, i: Cow<image::DynamicImage>) {
+    	use image::GenericImageView;
+	    let i = {
+    		let status_size = 22; //self.tray.size() as u32; // TODO
+    		i.resize(status_size, status_size, image::imageops::FilterType::Lanczos3)
+    	};
+    	let mut raw = i.to_rgba().into_raw();
+	    let (w, h) = i.dimensions();
+        let i = unsafe { QImage::from_uchar2_int_format(MutPtr::from_raw(raw.as_mut_ptr()), w as i32, h as i32, Format::FormatRGBA8888) };
+        unsafe { self.tray.set_icon(QIcon::from_q_pixmap(QPixmap::from_image_1a(i.as_ref()).as_ref()).as_ref()); }
+    }
+}
 impl HasLabelInner for QtTray {
     fn label(&self, _: &MemberBase) -> Cow<str> {
         unsafe {
@@ -43,17 +55,16 @@ impl CloseableInner for QtTray {
             }
         }
         unsafe { self.tray.hide(); }
-        crate::application::Application::get()
-            .unwrap()
-            .as_any_mut()
-            .downcast_mut::<crate::application::Application>()
-            .unwrap()
-            .inner_mut()
-            .remove_tray(unsafe { self.native_id() });
         true
     }
     fn on_close(&mut self, callback: Option<callbacks::OnClose>) {
         self.on_close = callback;
+    }
+    fn application<'a>(&'a self, base: &'a MemberBase) -> &'a dyn controls::Application {
+        unsafe { utils::base_to_impl::<Tray>(base) }.inner().application_impl::<crate::application::Application>()
+    }
+    fn application_mut<'a>(&'a mut self, base: &'a mut MemberBase) -> &'a mut dyn controls::Application {
+        unsafe { utils::base_to_impl_mut::<Tray>(base) }.inner_mut().application_impl_mut::<crate::application::Application>()
     }
 }
 impl HasImageInner for QtTray {
@@ -61,57 +72,37 @@ impl HasImageInner for QtTray {
         unimplemented!()
     }
     fn set_image(&mut self, _base: &mut MemberBase, i: Cow<image::DynamicImage>) {
-    	use image::GenericImageView;
-	    let i = {
-    		let status_size = 22; //self.tray.size() as u32;
-    		i.resize(status_size, status_size, image::FilterType::Lanczos3)
-    	};
-    	let mut raw = i.to_rgba().into_raw();
-	    let (w, h) = i.dimensions();
-        let i = unsafe { QImage::from_uchar2_int_format(MutPtr::from_raw(raw.as_mut_ptr()), w as i32, h as i32, Format::FormatRGBA8888) };
-        unsafe { self.tray.set_icon(QIcon::from_q_pixmap(QPixmap::from_image_1a(i.as_ref()).as_ref()).as_ref()); }
+    	self.set_image_inner(i)
     }
 }
-impl TrayInner for QtTray {
-    fn with_params<S: AsRef<str>>(title: S, menu: types::Menu) -> Box<dyn controls::Tray> {
-        let icon = unsafe { QApplication::style().standard_icon_1a(StandardPixmap::SPDesktopIcon) };
+impl<O: controls::Tray> NewTrayInner<O> for QtTray {
+    fn with_uninit_params(u: &mut mem::MaybeUninit<O>, title: &str, icon: image::DynamicImage, menu: types::Menu) -> Self {
+        let selfptr = u as *mut _ as *mut Tray;
+        let qicon = unsafe { QApplication::style().standard_icon_1a(StandardPixmap::SPDesktopIcon) };
         let tray = unsafe { QSystemTrayIcon::new() };
-
-        let mut tray = Box::new(AMember::with_inner(
-            ATray::with_inner(
-                QtTray {
-                    tray: tray,
-                    filter: CustomEventFilter::new(event_handler),
-                    menu: None,
-                    on_close: None,
-                    skip_callbacks: false,
-                }
-            ),
-        ));
-        unsafe {
-            let ptr = tray.as_ref() as *const _ as u64;
-            (tray.inner_mut().inner_mut().tray.static_upcast_mut::<QObject>()).set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
+        let mut t = QtTray {
+            tray: common::MaybeCppBox::Some(tray),
+            filter: common::MaybeCppBox::Some(CustomEventFilter::new(event_handler)),
+            menu: None,
+            on_close: None,
+            skip_callbacks: false,
+        };
+        unsafe { 
+            t.tray.set_tool_tip(&QString::from_std_str(title)); 
+            (t.tray.static_upcast_mut::<QObject>()).set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(selfptr as u64));
+            let filter = t.filter.static_upcast_mut::<QObject>();
+            let mut qobject = t.tray.static_upcast_mut::<QObject>();
+            qobject.install_event_filter(filter);
+            t.tray.set_icon(qicon.as_ref());
         }
-        controls::HasLabel::set_label(tray.as_mut(), title.as_ref().into());
         {
-            let selfptr = tray.as_mut() as *mut Tray;
-            let tray = tray.inner_mut().inner_mut();
-            //tray.tray.set_size_policy((QPolicy::Ignored, QPolicy::Ignored));
-            //tray.tray.set_minimum_size((1, 1));
-            unsafe {
-                let filter = tray.filter.static_upcast_mut::<QObject>();
-                let mut qobject = tray.tray.static_upcast_mut::<QObject>();
-                qobject.install_event_filter(filter);
-                tray.tray.set_icon(icon.as_ref());
-            }
-            
             if let Some(items) = menu {
-                tray.menu = Some((unsafe { QMenu::new() }, Vec::new()));
-                if let Some((ref mut context_menu, ref mut storage)) = tray.menu {
+                t.menu = Some((unsafe { QMenu::new() }, Vec::new()));
+                if let Some((ref mut context_menu, ref mut storage)) = t.menu {
                     fn slot_spawn(id: usize, selfptr: *mut Tray) -> Slot<'static> {
                         Slot::new(move || {
-                            let tray = unsafe { &mut *selfptr };
-                            if let Some((_, ref mut menu)) = tray.inner_mut().inner_mut().menu {
+                            let t = unsafe { &mut *selfptr };
+                            if let Some((_, ref mut menu)) = t.inner_mut().inner_mut().inner_mut().menu {
                                 if let Some((a, _)) = menu.get_mut(id) {
                                     let tray = unsafe { &mut *selfptr };
                                     (a.as_mut())(tray);
@@ -122,23 +113,41 @@ impl TrayInner for QtTray {
 
                     common::make_menu(context_menu, items, storage, slot_spawn, selfptr);
                     unsafe {
-                        tray.tray.set_context_menu(context_menu);
+                        t.tray.set_context_menu(context_menu);
                     }
                 } else {
                     unreachable!();
                 }
             }
-            unsafe { tray.tray.show(); }
+            unsafe { t.tray.show(); }
         }
-        tray
+        t.set_image_inner(Cow::Owned(icon));
+        t
+    }
+}
+impl TrayInner for QtTray {
+    fn with_params<S: AsRef<str>>(app: &mut dyn controls::Application, title: S, icon: image::DynamicImage, menu: types::Menu) -> Box<dyn controls::Tray> {
+        let mut b: Box<mem::MaybeUninit<Tray>> = Box::new_uninit();
+        let ab = AMember::with_inner(
+            ACloseable::with_inner(
+                ATray::with_inner(
+                    <Self as NewTrayInner<Tray>>::with_uninit_params(b.as_mut(), title.as_ref(), icon, menu),
+                ),
+	            app.as_any_mut().downcast_mut::<crate::application::Application>().unwrap()
+            )
+        );
+        unsafe {
+	        b.as_mut_ptr().write(ab);
+	        b.assume_init()
+        }
     }
 }
 
 impl HasNativeIdInner for QtTray {
     type Id = common::QtId;
 
-    unsafe fn native_id(&self) -> Self::Id {
-        QtId::from(self.tray.static_upcast::<QObject>().as_raw_ptr() as *mut QObject)
+    fn native_id(&self) -> Self::Id {
+        QtId::from(unsafe { self.tray.static_upcast::<QObject>() }.as_raw_ptr() as *mut QObject)
     }
 }
 impl HasVisibilityInner for QtTray {
@@ -160,8 +169,10 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
         QEventType::Hide => {
             let object2 = object as *mut QObject;
             if let Some(w) = common::cast_qobject_to_uimember_mut::<Tray>(object) {
-                if !w.inner().inner().skip_callbacks {
-                    if let Some(ref mut on_close) = w.inner_mut().inner_mut().on_close {
+                use crate::plygui_api::controls::Member;
+                
+                if !w.inner().inner().inner().skip_callbacks {
+                    if let Some(ref mut on_close) = w.inner_mut().inner_mut().inner_mut().on_close {
                         let w2 = common::cast_qobject_to_uimember_mut::<Tray>(unsafe { &mut *object2 }).unwrap();
                         if !(on_close.as_mut())(w2) {
                             unsafe { event.ignore(); }
@@ -169,13 +180,19 @@ fn event_handler(object: &mut QObject, event: &mut QEvent) -> bool {
                         }
                     }
                 }
-                crate::application::Application::get()
-                    .unwrap()
-                    .as_any_mut()
-                    .downcast_mut::<crate::application::Application>()
-                    .unwrap()
-                    .inner_mut()
-                    .remove_tray(unsafe { w.inner_mut().native_id() });
+                let id = w.id();
+                let app = w.inner_mut().application_impl_mut::<crate::application::Application>();
+                let _ = app.base.sender().send((move |a: &mut dyn controls::Application| {
+                    a.as_any_mut().downcast_mut::<crate::application::Application>().unwrap().base.windows.retain(|w| w.id() != id);
+                    false
+                }).into());
+            }
+        }
+        QEventType::Destroy => {
+            if let Some(t) = cast_qobject_to_uimember_mut::<Tray>(object) {
+                unsafe {
+                    ptr::write(&mut t.inner_mut().inner_mut().inner_mut().tray, common::MaybeCppBox::None);
+                }
             }
         }
         _ => {}

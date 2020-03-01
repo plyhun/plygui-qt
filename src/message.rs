@@ -91,8 +91,8 @@ impl MessageInner for QtMessage {
 impl HasNativeIdInner for QtMessage {
     type Id = common::QtId;
 
-    unsafe fn native_id(&self) -> Self::Id {
-        QtId::from(self.message.static_upcast::<QObject>().as_raw_ptr() as *mut QObject)
+    fn native_id(&self) -> Self::Id {
+        QtId::from(unsafe { self.message.static_upcast::<QObject>() }.as_raw_ptr() as *mut QObject)
     }
 }
 impl MemberInner for QtMessage {}

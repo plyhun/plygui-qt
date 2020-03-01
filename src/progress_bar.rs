@@ -121,8 +121,8 @@ impl ControlInner for QtProgressBar {
 impl HasNativeIdInner for QtProgressBar {
     type Id = common::QtId;
 
-    unsafe fn native_id(&self) -> Self::Id {
-        QtId::from(self.base.widget.static_upcast::<QObject>().as_raw_ptr() as *mut QObject)
+    fn native_id(&self) -> Self::Id {
+        QtId::from(unsafe { self.base.widget.static_upcast::<QObject>() }.as_raw_ptr() as *mut QObject)
     }
 }
 impl HasVisibilityInner for QtProgressBar {

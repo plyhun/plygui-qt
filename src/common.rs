@@ -21,7 +21,7 @@ pub use std::borrow::Cow;
 pub use std::os::raw::c_void;
 pub use std::{cmp, marker, mem, ops, ptr, sync::mpsc};
 
-pub use plygui_api::development::*;
+pub use plygui_api::sdk::*;
 pub use plygui_api::{callbacks, controls, defaults, ids, layout, types, utils};
 pub use plygui_api::external::image;
 
@@ -267,51 +267,47 @@ pub fn cast_member_to_qwidget_mut(member: &mut dyn controls::Member) -> &mut QWi
 pub fn cast_member_to_qwidget(member: &dyn controls::Member) -> &QWidget {
     unsafe { &*(member.native_id() as *const QWidget) }
 }
-fn cast_qobject_mut<'a, T>(object: &mut QObject) -> Option<&'a mut T>
+pub unsafe fn cast_qobject_mut<'a, T>(object: &mut QObject) -> Option<&'a mut T>
 where
     T: Sized,
 {
-    unsafe {
-        let mut qv = object.property(PROPERTY.as_ptr() as *const i8);
-        if qv.as_mut_raw_ptr().is_null() {
-            None
-        } else {
-            let ptr = qv.to_u_long_long_0a();
-            Some(mem::transmute(ptr as usize))
-        }
+    let mut qv = object.property(PROPERTY.as_ptr() as *const i8);
+    if qv.as_mut_raw_ptr().is_null() {
+        None
+    } else {
+        let ptr = qv.to_u_long_long_0a();
+        Some(mem::transmute(ptr as usize))
     }
 }
-fn cast_qobject<'a, T>(object: &QObject) -> Option<&'a T>
+pub unsafe fn cast_qobject<'a, T>(object: &QObject) -> Option<&'a T>
 where
     T: Sized,
 {
-    unsafe {
-        let qv = object.property(PROPERTY.as_ptr() as *const i8);
-        if qv.as_raw_ptr().is_null() {
-            None
-        } else {
-            let ptr = qv.to_u_long_long_0a();
-            Some(mem::transmute(ptr as usize))
-        }
+    let qv = object.property(PROPERTY.as_ptr() as *const i8);
+    if qv.as_raw_ptr().is_null() {
+        None
+    } else {
+        let ptr = qv.to_u_long_long_0a();
+        Some(mem::transmute(ptr as usize))
     }
 }
 pub fn cast_qobject_to_uimember_mut<'a, T>(object: &mut QObject) -> Option<&'a mut T>
 where
     T: controls::Member + Sized,
 {
-    cast_qobject_mut(object)
+    unsafe { cast_qobject_mut(object) }
 }
 pub fn cast_qobject_to_uimember<'a, T>(object: &QObject) -> Option<&'a T>
 where
     T: controls::Member + Sized,
 {
-    cast_qobject(object)
+    unsafe { cast_qobject(object) }
 }
 pub fn cast_qobject_to_base_mut<'a>(object: &mut QObject) -> Option<&'a mut MemberBase> {
-    cast_qobject_mut(object)
+    unsafe { cast_qobject_mut(object) }
 }
 pub fn cast_qobject_to_base<'a>(object: &QObject) -> Option<&'a MemberBase> {
-    cast_qobject(object)
+    unsafe { cast_qobject(object) }
 }
 pub fn orientation_to_qorientation(o: layout::Orientation) -> QOrientation {
     match o {
