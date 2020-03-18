@@ -13,22 +13,22 @@ pub struct QtSplitted {
     splitter: f32,
     first: Box<dyn controls::Control>,
     second: Box<dyn controls::Control>,
-    splitter_moved: SlotOfInt<'static>,
+    splitter_moved: QBox<SlotOfInt>,
 }
 
 impl<O: controls::Splitted> NewSplittedInner<O> for QtSplitted {
     fn with_uninit_params(ptr: &mut mem::MaybeUninit<O>, mut first: Box<dyn controls::Control>, mut second: Box<dyn controls::Control>, orientation: layout::Orientation) -> Self {
-        let mut qsplitter = unsafe { QSplitter::from_orientation(orientation_to_qorientation(orientation)) };
+        let qsplitter = unsafe { QSplitter::from_orientation(orientation_to_qorientation(orientation)) };
         unsafe {
-            qsplitter.insert_widget(0, MutPtr::from_raw(common::cast_control_to_qwidget_mut(first.as_mut())));
-            qsplitter.insert_widget(1, MutPtr::from_raw(common::cast_control_to_qwidget_mut(second.as_mut())));
+            qsplitter.insert_widget(0, Ptr::from_raw(common::cast_control_to_qwidget_mut(first.as_mut())));
+            qsplitter.insert_widget(1, Ptr::from_raw(common::cast_control_to_qwidget_mut(second.as_mut())));
         }
-        let mut ll = QtSplitted {
+        let ll = QtSplitted {
             base: common::QtControlBase::with_params(qsplitter, event_handler::<O>),
             splitter: defaults::SPLITTED_POSITION,
             first: first,
             second: second,
-            splitter_moved: SlotOfInt::new(move |_| {}),
+            splitter_moved: unsafe { SlotOfInt::new(NullPtr, move |_| {}) },
         };
         unsafe {
             let ptr = ptr as *const _ as u64;
@@ -38,7 +38,7 @@ impl<O: controls::Splitted> NewSplittedInner<O> for QtSplitted {
             });
             ll.base.widget.splitter_moved().connect(&ll.splitter_moved);
             {
-                let mut qo = ll.base.widget.static_upcast_mut::<QObject>();
+                let qo = ll.base.widget.static_upcast::<QObject>();
                 qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
             }
         }
@@ -110,9 +110,9 @@ impl QtSplitted {
     fn update_splitter(&mut self, member: &mut MemberBase, control: &mut ControlBase) {
         let (first, second) = self.children_sizes(member, control);
         unsafe {
-            let mut list = QListOfInt::new();
-            list.append_int(Ref::from_raw_ref(&(first as i32)));
-            list.append_int(Ref::from_raw_ref(&(second as i32)));
+            let list = QListOfInt::new();
+            list.append_int(&(first as i32));
+            list.append_int(&(second as i32));
             self.base.widget.set_sizes(&list);
         }
         self.update_children_layout(member, control);
@@ -139,7 +139,7 @@ impl HasNativeIdInner for QtSplitted {
     type Id = common::QtId;
 
     fn native_id(&self) -> Self::Id {
-        QtId::from(unsafe { self.base.widget.static_upcast::<QObject>() }.as_raw_ptr() as *mut QObject)
+        QtId::from(unsafe { self.base.widget.static_upcast::<QObject>().as_raw_ptr() } as *mut QObject)
     }
 }
 impl HasVisibilityInner for QtSplitted {
@@ -189,7 +189,7 @@ impl Drawable for QtSplitted {
                             }
                             w += match child.visibility() {
                                 types::Visibility::Gone => 0,
-                                _ => cmp::max(0, unsafe { self.base.widget.as_ref().handle_width() }) as u16,
+                                _ => cmp::max(0, unsafe { self.base.widget.handle_width() }) as u16,
                             };
                         }
                         measured = true;
@@ -221,7 +221,7 @@ impl Drawable for QtSplitted {
                             }
                             h += match child.visibility() {
                                 types::Visibility::Gone => 0,
-                                _ => cmp::max(0, unsafe { self.base.widget.as_ref().handle_width() }) as u16,
+                                _ => cmp::max(0, unsafe { self.base.widget.handle_width() }) as u16,
                             };
                         }
                         h
@@ -304,7 +304,7 @@ impl ControlInner for QtSplitted {
 
 impl HasOrientationInner for QtSplitted {
     fn orientation(&self, _: &MemberBase) -> layout::Orientation {
-        qorientation_to_orientation(unsafe { self.base.widget.as_ref().orientation() })
+        qorientation_to_orientation(unsafe { self.base.widget.orientation() })
     }
     fn set_orientation(&mut self, _base: &mut MemberBase, orientation: layout::Orientation) {
         unsafe { self.base.widget.set_orientation(orientation_to_qorientation(orientation)) };
@@ -406,8 +406,8 @@ impl MultiContainerInner for QtSplitted {
         };
         mem::swap(added, &mut child);
         unsafe {
-            ((self.base.widget.static_upcast_mut::<QFrame>()).layout().static_downcast_mut::<QBoxLayout>()).remove_widget(MutPtr::from_raw(common::cast_control_to_qwidget_mut(child.as_mut())));
-            self.base.widget.insert_widget(index as i32, MutPtr::from_raw(common::cast_control_to_qwidget_mut(added.as_mut())));
+            ((self.base.widget.static_upcast::<QFrame>()).layout().static_downcast::<QBoxLayout>()).remove_widget(Ptr::from_raw(common::cast_control_to_qwidget_mut(child.as_mut())));
+            self.base.widget.insert_widget(index as i32, Ptr::from_raw(common::cast_control_to_qwidget_mut(added.as_mut())));
         }
         self.base.invalidate();
         Some(child)
@@ -472,7 +472,7 @@ fn event_handler<O: controls::Splitted>(object: &mut QObject, event: &mut QEvent
         QEventType::Resize => {
             if let Some(this) = cast_qobject_to_uimember_mut::<Splitted>(object) {
                 let size = unsafe { 
-                    let size = &mut MutRef::from_raw_ref(event).static_downcast_mut::<QResizeEvent>();
+                    let size = Ref::from_raw(event).unwrap().static_downcast::<QResizeEvent>();
                     let size = (
                     	utils::coord_to_size(size.size().width()), 
                     	utils::coord_to_size(size.size().height())
@@ -481,13 +481,6 @@ fn event_handler<O: controls::Splitted>(object: &mut QObject, event: &mut QEvent
                 };
                 this.inner_mut().base.measured = size;
                 this.call_on_size::<O>(size.0, size.1);
-            }
-        }
-        QEventType::Destroy => {
-            if let Some(ll) = cast_qobject_to_uimember_mut::<Splitted>(object) {
-                unsafe {
-                    ptr::write(&mut ll.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().base.widget, common::MaybeCppBox::None);
-                }
             }
         }
         _ => {}

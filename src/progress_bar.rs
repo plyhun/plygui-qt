@@ -13,14 +13,14 @@ pub struct QtProgressBar {
 
 impl<O: controls::ProgressBar> NewProgressBarInner<O> for QtProgressBar {
     fn with_uninit(ptr: &mut mem::MaybeUninit<O>) -> Self {
-        let mut pb = QtProgressBar {
+        let pb = QtProgressBar {
             base: common::QtControlBase::with_params(unsafe { QProgressBar::new_0a() }, event_handler::<O>),
         };
         unsafe {
             pb.base.widget.set_minimum(0);
             pb.base.widget.set_text_visible(false);
             let ptr = ptr as *const _ as u64;
-            let mut qo = pb.base.widget.as_mut_ref().static_upcast_mut::<QObject>();
+            let qo = pb.base.widget.static_upcast::<QObject>();
             qo.set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
         }
         pb
@@ -47,7 +47,7 @@ impl ProgressBarInner for QtProgressBar {
 impl HasProgressInner for QtProgressBar {
     fn progress(&self, _base: &MemberBase) -> types::Progress {
 	    unsafe {
-	        let progress_bar = self.base.widget.as_ref();
+	        let progress_bar = &self.base.widget;
             if progress_bar.inverted_appearance() {
                 return types::Progress::None;
             }
@@ -62,7 +62,7 @@ impl HasProgressInner for QtProgressBar {
     }
 	fn set_progress(&mut self, _base: &mut MemberBase, arg: types::Progress) {
 	    unsafe {
-	        let mut progress_bar = self.base.widget.as_mut_ref();
+	        let progress_bar = &self.base.widget;
             match arg {
             	types::Progress::Value(current, total) => {
             	    progress_bar.set_inverted_appearance(false);
@@ -122,7 +122,7 @@ impl HasNativeIdInner for QtProgressBar {
     type Id = common::QtId;
 
     fn native_id(&self) -> Self::Id {
-        QtId::from(unsafe { self.base.widget.static_upcast::<QObject>() }.as_raw_ptr() as *mut QObject)
+        QtId::from(unsafe { self.base.widget.static_upcast::<QObject>().as_raw_ptr() } as *mut QObject)
     }
 }
 impl HasVisibilityInner for QtProgressBar {
@@ -148,7 +148,7 @@ impl Drawable for QtProgressBar {
         control.measured = match control.visibility {
             types::Visibility::Gone => (0, 0),
             _ => {
-                let font = unsafe { self.base.widget.as_ref().font() };
+                let font = unsafe { self.base.widget.font() };
 
                 let mut label_size = unsafe { QRect::from_4_int(0, 0, 0, 0) };
                 let w = match control.layout.width {
@@ -157,7 +157,7 @@ impl Drawable for QtProgressBar {
                     layout::Size::WrapContent => unsafe {
                         if label_size.width() < 1 {
                             let fm = QFontMetrics::new_1a(font);
-                            label_size = fm.bounding_rect_q_string(&self.base.widget.as_ref().text());
+                            label_size = fm.bounding_rect_q_string(&self.base.widget.text());
                         }
                         label_size.width() + 16
                     }
@@ -168,7 +168,7 @@ impl Drawable for QtProgressBar {
                     layout::Size::WrapContent => unsafe {
                         if label_size.height() < 1 {
                             let fm = QFontMetrics::new_1a(font);
-                            label_size = fm.bounding_rect_q_string(&self.base.widget.as_ref().text());
+                            label_size = fm.bounding_rect_q_string(&self.base.widget.text());
                         }
                         label_size.height() + 16
                     }
@@ -194,7 +194,7 @@ fn event_handler<O: controls::ProgressBar>(object: &mut QObject, event: &mut QEv
         QEventType::Resize => {
             if let Some(this) = cast_qobject_to_uimember_mut::<ProgressBar>(object) {
                 let size = unsafe { 
-                    let size = &mut MutRef::from_raw_ref(event).static_downcast_mut::<QResizeEvent>();
+                    let size = Ref::from_raw(event).unwrap().static_downcast::<QResizeEvent>();
                     let size = (
                     	utils::coord_to_size(size.size().width()), 
                     	utils::coord_to_size(size.size().height())
@@ -203,13 +203,6 @@ fn event_handler<O: controls::ProgressBar>(object: &mut QObject, event: &mut QEv
                 };
                 this.inner_mut().base.measured = size;
                 this.call_on_size::<O>(size.0, size.1);
-            }
-        }
-        QEventType::Destroy => {
-            if let Some(ll) = cast_qobject_to_uimember_mut::<ProgressBar>(object) {
-                unsafe {
-                    ptr::write(&mut ll.inner_mut().inner_mut().inner_mut().base.widget, common::MaybeCppBox::None);
-                }
             }
         }
         _ => {}

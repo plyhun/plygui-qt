@@ -1,7 +1,7 @@
 use crate::common::{self, *};
 
 use qt_core::QRect;
-use qt_core::Slot;
+use qt_core::SlotNoArgs;
 use qt_gui::QFontMetrics;
 use qt_widgets::QPushButton;
 
@@ -13,15 +13,15 @@ pub type Button = AMember<AControl<AButton<QtButton>>>;
 pub struct QtButton {
     base: common::QtControlBase<Button, QPushButton>,
     skip_callbacks: bool,
-    h_left_clicked: (Option<callbacks::OnClick>, Slot<'static>),
+    h_left_clicked: (Option<callbacks::OnClick>, QBox<SlotNoArgs>),
 }
 
 impl HasLabelInner for QtButton {
     fn label(&self, _: &MemberBase) -> Cow<str> {
-        let name = unsafe { self.base.widget.as_ref().text().to_utf8() };
+        let name = unsafe { self.base.widget.text().to_utf8() };
         unsafe {
-            let bytes = std::slice::from_raw_parts(name.const_data().as_raw_ptr() as *const u8, name.count() as usize);
-            Cow::Owned(std::str::from_utf8_unchecked(bytes).to_owned())
+            let bytes = std::slice::from_raw_parts(name.const_data(), name.count() as usize);
+            Cow::Owned(std::str::from_utf8_unchecked(mem::transmute(bytes)).to_owned())
         }
     }
     fn set_label(&mut self, _: &mut MemberBase, label: Cow<str>) {
@@ -41,22 +41,23 @@ impl ClickableInner for QtButton {
 impl<O: controls::Button> NewButtonInner<O> for QtButton {
     fn with_uninit(ptr: &mut mem::MaybeUninit<O>) -> Self {
         let ptr = ptr as *mut _ as u64;
-        let mut btn = QtButton {
+        let handler = move || unsafe {
+            let button: &mut Button = mem::transmute(ptr);
+            if !button.inner().inner().inner().skip_callbacks {
+                if let Some(ref mut cb) = button.inner_mut().inner_mut().inner_mut().h_left_clicked.0 {
+                    let o: &mut O = mem::transmute(ptr);
+                    (cb.as_mut())(o);
+                }
+            }
+        };
+        let btn = QtButton {
             base: common::QtControlBase::with_params(unsafe { QPushButton::new() }, event_handler::<O>),
             skip_callbacks: false,
-            h_left_clicked: (None, Slot::new(move || unsafe {
-                let button: &mut Button = mem::transmute(ptr);
-                if !button.inner().inner().inner().skip_callbacks {
-                    if let Some(ref mut cb) = button.inner_mut().inner_mut().inner_mut().h_left_clicked.0 {
-                        let o: &mut O = mem::transmute(ptr);
-                        (cb.as_mut())(o);
-                    }
-                }
-            })),
+            h_left_clicked: (None, unsafe { SlotNoArgs::new(NullPtr, handler) }),
         };
         unsafe {
             btn.base.widget.released().connect(&btn.h_left_clicked.1);
-            let qo: &mut QObject = &mut btn.base.widget.as_mut_ref().static_upcast_mut();
+            let qo: &QObject = &mut btn.base.widget.static_upcast();
             qo.set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
         }
         btn
@@ -120,7 +121,7 @@ impl HasNativeIdInner for QtButton {
     type Id = common::QtId;
 
     fn native_id(&self) -> Self::Id {
-        QtId::from(unsafe { self.base.widget.static_upcast::<QObject>() }.as_raw_ptr() as *mut QObject)
+        QtId::from(unsafe { self.base.widget.static_upcast::<QObject>().as_raw_ptr() } as *mut QObject)
     }
 }
 impl HasVisibilityInner for QtButton {
@@ -152,7 +153,7 @@ impl Drawable for QtButton {
         control.measured = match control.visibility {
             types::Visibility::Gone => (0, 0),
             _ => {
-                let font = unsafe { self.base.widget.as_ref().font() };
+                let font = unsafe { self.base.widget.font() };
 
                 let mut label_size = unsafe { QRect::from_4_int(0, 0, 0, 0) };
                 let w = match control.layout.width {
@@ -161,7 +162,7 @@ impl Drawable for QtButton {
                     layout::Size::WrapContent => unsafe {
                         if label_size.width() < 1 {
                             let fm = QFontMetrics::new_1a(font);
-                            label_size = fm.bounding_rect_q_string(&self.base.widget.as_ref().text());
+                            label_size = fm.bounding_rect_q_string(&self.base.widget.text());
                         }
                         label_size.width()
                     }
@@ -172,7 +173,7 @@ impl Drawable for QtButton {
                     layout::Size::WrapContent => unsafe {
                         if label_size.height() < 1 {
                             let fm = QFontMetrics::new_1a(font);
-                            label_size = fm.bounding_rect_q_string(&self.base.widget.as_ref().text());
+                            label_size = fm.bounding_rect_q_string(&self.base.widget.text());
                         }
                         label_size.height()
                     }
@@ -198,7 +199,7 @@ fn event_handler<O: controls::Button>(object: &mut QObject, event: &mut QEvent) 
         QEventType::Resize => {
             if let Some(this) = cast_qobject_to_uimember_mut::<Button>(object) {
                 let size = unsafe { 
-                    let size = &mut MutRef::from_raw_ref(event).static_downcast_mut::<QResizeEvent>();
+                    let size = Ptr::from_raw(event).static_downcast::<QResizeEvent>();
                     let size = (
                     	utils::coord_to_size(size.size().width()), 
                     	utils::coord_to_size(size.size().height())
@@ -215,13 +216,6 @@ fn event_handler<O: controls::Button>(object: &mut QObject, event: &mut QEvent) 
                     size
                 };
                 this.call_on_size::<O>(size.0, size.1);
-            }
-        }
-        QEventType::Destroy => {
-            if let Some(ll) = cast_qobject_to_uimember_mut::<Button>(object) {
-                unsafe {
-                    ptr::write(&mut ll.inner_mut().inner_mut().inner_mut().base.widget, common::MaybeCppBox::None);
-                }
             }
         }
         _ => {}

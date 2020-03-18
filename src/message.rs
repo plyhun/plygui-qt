@@ -10,17 +10,17 @@ pub type Message = AMember<AMessage<QtMessage>>;
 
 #[repr(C)]
 pub struct QtMessage {
-    message: CppBox<QMessageBox>,
-    filter: CppBox<CustomEventFilter>,
+    message: QBox<QMessageBox>,
+    filter: QBox<CustomEventFilter>,
     actions: Vec<(String, callbacks::Action)>,
 }
 
 impl HasLabelInner for QtMessage {
     fn label(&self, _: &MemberBase) -> Cow<str> {
         unsafe {
-            let name = self.message.as_ref().text().to_utf8();
-            let bytes = std::slice::from_raw_parts(name.const_data().as_raw_ptr() as *const u8, name.count() as usize);
-            Cow::Owned(std::str::from_utf8_unchecked(bytes).to_owned())
+            let name = self.message.as_ref().unwrap().text().to_utf8();
+            let bytes = std::slice::from_raw_parts(name.const_data(), name.count() as usize);
+            Cow::Owned(std::str::from_utf8_unchecked(mem::transmute(bytes)).to_owned())
         }
     }
     fn set_label(&mut self, _: &mut MemberBase, label: Cow<str>) {
@@ -41,11 +41,11 @@ impl MessageInner for QtMessage {
         ));
         unsafe {
             let ptr = message.as_ref() as *const _ as u64;
-            (message.inner_mut().inner_mut().message.static_upcast_mut::<QObject>()).set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
+            (message.inner_mut().inner_mut().message.static_upcast::<QObject>()).set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
         }
         unsafe {
             let message = message.inner_mut().inner_mut();
-            let mut qmessage = message.message.as_mut_ptr();
+            let qmessage = message.message.as_ptr();
 
             match content {
                 types::TextContent::Plain(ref text) => {
@@ -64,11 +64,11 @@ impl MessageInner for QtMessage {
                 message.message.set_window_modality(WindowModality::WindowModal);
             }
             message.actions.iter().for_each(|a| {
-                (&mut *qmessage).add_button_q_string_button_role(&QString::from_std_str(a.0.as_str()), ButtonRole::ActionRole);
+                qmessage.add_button_q_string_button_role(&QString::from_std_str(a.0.as_str()), ButtonRole::ActionRole);
             });
 
-            let filter = message.filter.static_upcast_mut::<QObject>();
-            let mut qobject = message.message.static_upcast_mut::<QObject>();
+            let filter = message.filter.static_upcast::<QObject>();
+            let qobject = message.message.static_upcast::<QObject>();
             qobject.install_event_filter(filter);
         }
         message
@@ -77,11 +77,11 @@ impl MessageInner for QtMessage {
         message_icon_to_severity(unsafe { self.message.icon() })
     }
     fn start(mut self) -> Result<String, ()> {
-        let mut ptr = unsafe { self.message.static_upcast_mut::<QObject>() };
+        let ptr = unsafe { self.message.static_upcast::<QObject>() };
         self.actions
             .get_mut(unsafe { self.message.exec() as usize })
             .map(|a| {
-                let message2 = { common::cast_qobject_to_uimember_mut::<Message>(&mut *ptr).unwrap() };
+                let message2 = { common::cast_qobject_to_uimember_mut::<Message>(&*ptr).unwrap() };
                 (a.1.as_mut())(message2);
                 a.0.clone()
             })
@@ -92,7 +92,7 @@ impl HasNativeIdInner for QtMessage {
     type Id = common::QtId;
 
     fn native_id(&self) -> Self::Id {
-        QtId::from(unsafe { self.message.static_upcast::<QObject>() }.as_raw_ptr() as *mut QObject)
+        QtId::from(unsafe { self.message.static_upcast::<QObject>().as_raw_ptr() } as *mut QObject)
     }
 }
 impl MemberInner for QtMessage {}

@@ -18,9 +18,9 @@ pub type Application = AApplication<QtApplication>;
 
 pub struct QtApplication {
     _args: QCoreApplicationArgs,
-    inner: CppBox<QApplication>,
-    timer: CppBox<QTimer>,
-    pub(crate) queue: Slot<'static>,
+    inner: QBox<QApplication>,
+    timer: QBox<QTimer>,
+    pub(crate) queue: QBox<SlotNoArgs>,
 }
 
 impl QtApplication {
@@ -39,7 +39,7 @@ impl<O: controls::Application> NewApplicationInner<O> for QtApplication {
     fn with_uninit_params(u: &mut mem::MaybeUninit<O>, name: &str) -> Self {
         let mut args = QCoreApplicationArgs::new();
         let (arg1, arg2) = args.get();
-        let inner = unsafe { QApplication::new_2a(MutRef::from_raw(arg1).unwrap(), arg2) };
+        let inner = unsafe { QApplication::new_2a(arg1, arg2) };
         unsafe { 
             QGuiApplication::set_quit_on_last_window_closed(false);
             QCoreApplication::set_application_name(&QString::from_std_str(name));
@@ -48,15 +48,14 @@ impl<O: controls::Application> NewApplicationInner<O> for QtApplication {
             _args: args,
             inner: inner,
             timer: unsafe { QTimer::new_0a() },
-            queue: Slot::new(move || {}),
+            queue: unsafe { SlotNoArgs::new(NullPtr, move || {}) },
         };
         let selfptr = u as *const _ as u64;
         unsafe {
-            let qo: &mut QObject = &mut a.inner.as_mut_ref().static_upcast_mut();
-            qo.set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(selfptr));
+            a.inner.set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(selfptr));
         }
         a.set_frame_sleep(DEFAULT_FRAME_SLEEP_MS);
-        a.queue = Slot::new(move || {
+        let handler = move || {
             let mut frame_callbacks = 0;
             while frame_callbacks < defaults::MAX_FRAME_CALLBACKS {
                 let w = &mut unsafe { &mut *(selfptr as *mut Application) }.base;
@@ -73,7 +72,8 @@ impl<O: controls::Application> NewApplicationInner<O> for QtApplication {
                     },
                 }
             }
-        });
+        };
+        a.queue = unsafe { SlotNoArgs::new(NullPtr, handler) };
         unsafe { a.timer.timeout().connect(&a.queue) };
         a
     }
@@ -102,8 +102,8 @@ impl ApplicationInner for QtApplication {
     fn name<'a>(&'a self) -> Cow<'a, str> {
         unsafe {
             let name = QCoreApplication::application_name().to_utf8();
-            let bytes = std::slice::from_raw_parts(name.const_data().as_raw_ptr() as *const u8, name.count() as usize);
-            Cow::Owned(std::str::from_utf8_unchecked(bytes).to_owned())
+            let bytes = std::slice::from_raw_parts(name.const_data(), name.count() as usize);
+            Cow::Owned(std::str::from_utf8_unchecked(mem::transmute(bytes)).to_owned())
         }
     }
     fn start(&mut self) {
@@ -274,7 +274,7 @@ impl HasNativeIdInner for QtApplication {
     type Id = common::QtId;
 
     fn native_id(&self) -> Self::Id {
-        QtId::from(unsafe { self.inner.static_upcast::<QObject>() }.as_raw_ptr() as *const QObject as *mut QObject)
+        QtId::from(unsafe { self.inner.static_upcast::<QObject>().as_raw_ptr() } as *const QObject as *mut QObject)
     }
 }
 impl Drop for QtApplication {

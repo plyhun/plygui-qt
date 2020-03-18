@@ -9,10 +9,10 @@ pub type Window = AMember<AContainer<ASingleContainer<ACloseable<AWindow<QtWindo
 
 #[repr(C)]
 pub struct QtWindow {
-    window: common::MaybeCppBox<QMainWindow>,
+    window: QBox<QMainWindow>,
     child: Option<Box<dyn controls::Control>>,
-    filter: CppBox<CustomEventFilter>,
-    menu: Vec<(callbacks::Action, Slot<'static>)>,
+    filter: QBox<CustomEventFilter>,
+menu: Vec<(callbacks::Action, QBox<SlotNoArgs>)>,
     on_close: Option<callbacks::OnClose>,
     skip_callbacks: bool,
 }
@@ -20,9 +20,9 @@ pub struct QtWindow {
 impl HasLabelInner for QtWindow {
     fn label<'a>(&'a self, _: &MemberBase) -> Cow<'a, str> {
         unsafe {
-            let name = self.window.as_ref().window_title().to_utf8();
-            let bytes = std::slice::from_raw_parts(name.const_data().as_raw_ptr() as *const u8, name.count() as usize);
-            Cow::Owned(std::str::from_utf8_unchecked(bytes).to_owned())
+            let name = self.window.window_title().to_utf8();
+            let bytes = std::slice::from_raw_parts(name.const_data(), name.count() as usize);
+            Cow::Owned(std::str::from_utf8_unchecked(mem::transmute(bytes)).to_owned())
         }
     }
     fn set_label(&mut self, _: &mut MemberBase, label: Cow<str>) {
@@ -49,7 +49,7 @@ impl<O: controls::Window> NewWindowInner<O> for QtWindow {
     fn with_uninit_params(u: &mut mem::MaybeUninit<O>, app: &mut dyn controls::Application, title: &str, start_size: types::WindowStartSize, menu: types::Menu) -> Self {
    		let selfptr = u as *mut _ as *mut Window;
    		let mut w = QtWindow {
-            window: common::MaybeCppBox::Some(unsafe { QMainWindow::new_0a() }),
+            window: unsafe { QMainWindow::new_0a() },
             child: None,
             filter: CustomEventFilter::new(event_handler::<Window>),
             menu: if menu.is_some() { Vec::new() } else { Vec::with_capacity(0) },
@@ -57,7 +57,7 @@ impl<O: controls::Window> NewWindowInner<O> for QtWindow {
             skip_callbacks: false,
         };
    		unsafe {
-            w.window.static_upcast_mut::<QObject>().set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(selfptr as u64));
+            w.window.static_upcast::<QObject>().set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(selfptr as u64));
             w.window.set_window_title(&QString::from_std_str(&title));
             let (ww, hh) = match start_size {
                 types::WindowStartSize::Exact(w, h) => (w as i32, h as i32),
@@ -69,21 +69,23 @@ impl<O: controls::Window> NewWindowInner<O> for QtWindow {
             w.window.resize_2a(ww, hh);
             w.window.set_size_policy_2a(QSizePolicy::Ignored, QSizePolicy::Ignored);
             w.window.set_minimum_size_2a(1, 1);
-            let filter = w.filter.static_upcast_mut::<QObject>();
-            let mut qobject = w.window.static_upcast_mut::<QObject>();
+            let filter = w.filter.static_upcast::<QObject>();
+            let qobject = w.window.static_upcast::<QObject>();
             qobject.install_event_filter(filter);
         }
         if let Some(mut items) = menu {
-            let mut menu_bar = unsafe { w.window.menu_bar() };
-
-            fn slot_spawn(id: usize, selfptr: *mut Window) -> Slot<'static> {
-                Slot::new(move || {
-                    let window = unsafe { &mut *selfptr };
-                    if let Some((a, _)) = window.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().menu.get_mut(id) {
-                        let window = unsafe { &mut *selfptr };
-                        (a.as_mut())(window);
-                    }
-                })
+            let menu_bar = unsafe { w.window.menu_bar() };
+            
+            fn slot_spawn(id: usize, selfptr: *mut Window) -> QBox<SlotNoArgs> {
+                let handler = move || {
+	                let window = unsafe { &mut *selfptr };
+	                if let Some((a, _)) = window.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().menu.get_mut(id) {
+	                    let window = unsafe { &mut *selfptr };
+	                    (a.as_mut())(window);
+	                }
+	            };
+	
+	            unsafe { SlotNoArgs::new(NullPtr, handler) }
             }
             for item in items.drain(..) {
                 match item {
@@ -157,7 +159,7 @@ impl SingleContainerInner for QtWindow {
         if let Some(new) = child.as_mut() {
             unsafe {
                 let widget = common::cast_control_to_qwidget_mut(new.as_mut());
-                self.window.set_central_widget(MutPtr::from_raw(widget));
+                self.window.set_central_widget(Ptr::from_raw(widget));
                 new.on_added_to_container(
                     utils::base_to_impl_mut::<Window>(base),
                     0,
@@ -168,7 +170,7 @@ impl SingleContainerInner for QtWindow {
             }
         } else {
             unsafe {
-                self.window.set_central_widget(QWidget::new_0a().as_mut_ptr());
+                self.window.set_central_widget(QWidget::new_0a().as_ptr());
             }
         }
         self.child = child;
@@ -209,7 +211,7 @@ impl HasNativeIdInner for QtWindow {
     type Id = common::QtId;
 
     fn native_id(&self) -> Self::Id {
-        QtId::from(unsafe { self.window.static_upcast::<QObject>() }.as_raw_ptr() as *mut QObject)
+        QtId::from(unsafe { self.window.static_upcast::<QObject>().as_raw_ptr() } as *mut QObject)
     }
 }
 impl HasSizeInner for QtWindow {
@@ -262,13 +264,6 @@ fn event_handler<O: controls::Window>(object: &mut QObject, event: &mut QEvent) 
                     a.as_any_mut().downcast_mut::<crate::application::Application>().unwrap().base.windows.retain(|w| w.id() != id);
                     false
                 }).into());
-            }
-        }
-        QEventType::Destroy => {
-            if let Some(w) = cast_qobject_to_uimember_mut::<Window>(object) {
-                unsafe {
-                    ptr::write(&mut w.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().window, common::MaybeCppBox::None);
-                }
             }
         }
         _ => {}

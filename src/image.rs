@@ -17,7 +17,7 @@ pub struct QtImage {
 
 impl<O: controls::Image> NewImageInner<O> for QtImage {
     fn with_uninit_params(ptr: &mut mem::MaybeUninit<O>, content: image::DynamicImage) -> Self {
-        let mut i = QtImage {
+        let i = QtImage {
             base: QtControlBase::with_params(unsafe { QLabel::new() }, event_handler::<O>),
             scale: types::ImageScalePolicy::FitCenter,
             pixmap: unsafe { QPixmap::new() },
@@ -25,7 +25,7 @@ impl<O: controls::Image> NewImageInner<O> for QtImage {
         };
         unsafe {
             let ptr = ptr as *const _ as u64;
-            let mut qo = i.base.widget.static_upcast_mut::<QObject>().as_mut_ptr();
+            let qo = i.base.widget.static_upcast::<QObject>().as_ptr();
             qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
             i.base.widget.set_alignment(AlignmentFlag::AlignCenter.into());
         }
@@ -66,7 +66,7 @@ impl QtImage {
         let (iw, ih) = control.measured;
         let mut raw = self.content.to_rgba().into_raw();
 	    unsafe { 
-	        let img = QImage::from_uchar2_int_format(MutPtr::from_raw(raw.as_mut_ptr()), w as i32, h as i32, Format::FormatRGBA8888);
+	        let img = QImage::from_uchar2_int_format(raw.as_mut_ptr(), w as i32, h as i32, Format::FormatRGBA8888);
             let pixmap = QPixmap::from_image_1a(img.as_ref());
             self.pixmap = match self.scale {
                 types::ImageScalePolicy::FitCenter => pixmap.scaled_2_int_aspect_ratio_mode(iw as i32, ih as i32, AspectRatioMode::KeepAspectRatio),
@@ -126,7 +126,7 @@ impl HasNativeIdInner for QtImage {
     type Id = common::QtId;
 
     fn native_id(&self) -> Self::Id {
-        QtId::from(unsafe { self.base.widget.static_upcast::<QObject>() }.as_raw_ptr() as *mut QObject)
+        QtId::from(unsafe { self.base.widget.static_upcast::<QObject>().as_raw_ptr() } as *mut QObject)
     }
 }
 impl HasVisibilityInner for QtImage {
@@ -190,7 +190,7 @@ fn event_handler<O: controls::Image>(object: &mut QObject, event: &mut QEvent) -
         QEventType::Resize => {
             if let Some(this) = cast_qobject_to_uimember_mut::<Image>(object) {
                 let size = unsafe { 
-                    let size = MutPtr::from_raw(event).static_downcast_mut::<QResizeEvent>();
+                    let size = Ptr::from_raw(event).static_downcast::<QResizeEvent>();
                     (
                     	utils::coord_to_size(size.size().width()), 
                     	utils::coord_to_size(size.size().height())
@@ -202,13 +202,6 @@ fn event_handler<O: controls::Image>(object: &mut QObject, event: &mut QEvent) -
                 	this.inner_mut().update_image(c);
                 }
 	            this.call_on_size::<O>(size.0, size.1);
-            }
-        }
-        QEventType::Destroy => {
-            if let Some(ll) = cast_qobject_to_uimember_mut::<Image>(object) {
-                unsafe {
-                    ptr::write(&mut ll.inner_mut().inner_mut().inner_mut().base.widget, common::MaybeCppBox::None);
-                }
             }
         }
         _ => {}

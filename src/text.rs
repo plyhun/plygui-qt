@@ -17,9 +17,9 @@ pub struct QtText {
 impl HasLabelInner for QtText {
     fn label(&self, _: &MemberBase) -> Cow<str> {
         unsafe {
-            let name = self.base.widget.as_ref().text().to_utf8();
-            let bytes = std::slice::from_raw_parts(name.const_data().as_raw_ptr() as *const u8, name.count() as usize);
-            Cow::Owned(std::str::from_utf8_unchecked(bytes).to_owned())
+            let name = self.base.widget.text().to_utf8();
+            let bytes = std::slice::from_raw_parts(name.const_data(), name.count() as usize);
+            Cow::Owned(std::str::from_utf8_unchecked(mem::transmute(bytes)).to_owned())
         }
     }
     fn set_label(&mut self, _: &mut MemberBase, label: Cow<str>) {
@@ -29,12 +29,12 @@ impl HasLabelInner for QtText {
 
 impl<O: controls::Text> NewTextInner<O> for QtText {
     fn with_uninit(ptr: &mut mem::MaybeUninit<O>) -> Self {
-        let mut t = QtText {
+        let t = QtText {
             base: common::QtControlBase::with_params(unsafe { QLabel::new() }, event_handler::<O>),
         };
         unsafe {
             let ptr = ptr as *const _ as u64;
-            let mut qo = t.base.widget.static_upcast_mut::<QObject>();
+            let qo = t.base.widget.static_upcast::<QObject>();
             qo.set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
         }
         t
@@ -99,7 +99,7 @@ impl HasNativeIdInner for QtText {
     type Id = common::QtId;
 
     fn native_id(&self) -> Self::Id {
-        QtId::from(unsafe { self.base.widget.static_upcast::<QObject>() }.as_raw_ptr() as *mut QObject)
+        QtId::from(unsafe { self.base.widget.static_upcast::<QObject>().as_raw_ptr() } as *mut QObject)
     }
 }
 impl HasVisibilityInner for QtText {
@@ -125,7 +125,7 @@ impl Drawable for QtText {
         control.measured = match control.visibility {
             types::Visibility::Gone => (0, 0),
             _ => {
-                let font = unsafe { self.base.widget.as_ref().font() };
+                let font = unsafe { self.base.widget.font() };
                 let mut label_size = unsafe { QRect::from_4_int(0, 0, 0, 0) };
                 let w = match control.layout.width {
                     layout::Size::MatchParent => parent_width as i32,
@@ -133,7 +133,7 @@ impl Drawable for QtText {
                     layout::Size::WrapContent => unsafe {
                         if label_size.width() < 1 {
                             let fm = QFontMetrics::new_1a(font);
-                            label_size = fm.bounding_rect_q_string(&self.base.widget.as_ref().text());
+                            label_size = fm.bounding_rect_q_string(&self.base.widget.text());
                         }
                         label_size.width() + 16
                     }
@@ -144,7 +144,7 @@ impl Drawable for QtText {
                     layout::Size::WrapContent => unsafe {
                         if label_size.height() < 1 {
                             let fm = QFontMetrics::new_1a(font);
-                            label_size = fm.bounding_rect_q_string(&self.base.widget.as_ref().text());
+                            label_size = fm.bounding_rect_q_string(&self.base.widget.text());
                         }
                         label_size.height() + 16
                     }
@@ -170,7 +170,7 @@ fn event_handler<O: controls::Text>(object: &mut QObject, event: &mut QEvent) ->
         QEventType::Resize => {
             if let Some(this) = cast_qobject_to_uimember_mut::<Text>(object) {
                 let size = unsafe { 
-                    let size = &mut MutRef::from_raw_ref(event).static_downcast_mut::<QResizeEvent>();
+                    let size = Ref::from_raw(event).unwrap().static_downcast::<QResizeEvent>();
                     let size = (
                     	utils::coord_to_size(size.size().width()), 
                     	utils::coord_to_size(size.size().height())
@@ -187,13 +187,6 @@ fn event_handler<O: controls::Text>(object: &mut QObject, event: &mut QEvent) ->
                     size
                 };
                 this.call_on_size::<O>(size.0, size.1);
-            }
-        }
-        QEventType::Destroy => {
-            if let Some(ll) = cast_qobject_to_uimember_mut::<Text>(object) {
-                unsafe {
-                    ptr::write(&mut ll.inner_mut().inner_mut().inner_mut().base.widget, common::MaybeCppBox::None);
-                }
             }
         }
         _ => {}
