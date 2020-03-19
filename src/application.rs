@@ -3,6 +3,7 @@ use crate::common::{self, *};
 use qt_core::{QCoreApplication, QCoreApplicationArgs};
 use qt_core::QTimer;
 use qt_core::QString;
+use qt_core::ConnectionType;
 use qt_gui::QGuiApplication;
 use qt_widgets::QApplication;
 
@@ -74,7 +75,7 @@ impl<O: controls::Application> NewApplicationInner<O> for QtApplication {
             }
         };
         a.queue = unsafe { SlotNoArgs::new(NullPtr, handler) };
-        unsafe { a.timer.timeout().connect(&a.queue) };
+        unsafe { a.timer.timeout().connect_with_type(ConnectionType::QueuedConnection, &a.queue) };
         a
     }
 }
@@ -89,7 +90,9 @@ impl ApplicationInner for QtApplication {
 	        b.as_mut_ptr().write(ab);
 	        b.assume_init()
         };
-        a.inner_mut().timer.slot_start();
+        unsafe {
+        	a.inner_mut().timer.start_0a();
+        }
         a
     }
 	fn frame_sleep(&self) -> u32 {
