@@ -12,7 +12,7 @@ pub struct QtWindow {
     window: QBox<QMainWindow>,
     child: Option<Box<dyn controls::Control>>,
     filter: QBox<CustomEventFilter>,
-menu: Vec<(callbacks::Action, QBox<SlotNoArgs>)>,
+    menu: Vec<(callbacks::Action, QBox<SlotNoArgs>)>,
     on_close: Option<callbacks::OnClose>,
     skip_callbacks: bool,
 }
@@ -261,8 +261,9 @@ fn event_handler<O: controls::Window>(object: &mut QObject, event: &mut QEvent) 
                 let id = w.id();
                 let app = w.inner_mut().inner_mut().inner_mut().application_impl_mut::<crate::application::Application>();
                 let _ = app.base.sender().send((move |a: &mut dyn controls::Application| {
-                    a.as_any_mut().downcast_mut::<crate::application::Application>().unwrap().base.windows.retain(|w| w.id() != id);
-                    false
+                    let app = a.as_any_mut().downcast_mut::<crate::application::Application>().unwrap();
+                    app.base.windows.retain(|w| w.id() != id);
+                    app.inner_mut().maybe_exit()
                 }).into());
             }
         }

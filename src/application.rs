@@ -25,7 +25,7 @@ pub struct QtApplication {
 }
 
 impl QtApplication {
-    fn maybe_exit(&mut self) -> bool {
+    pub fn maybe_exit(&mut self) -> bool {
         let base = &mut unsafe { common::cast_qobject_mut::<Application>(&mut self.inner) }.unwrap().base;
         if base.windows.len() < 1 && base.trays.len() < 1 {
             unsafe { QCoreApplication::quit(); }
