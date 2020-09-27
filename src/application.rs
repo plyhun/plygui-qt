@@ -164,8 +164,8 @@ impl ApplicationInner for QtApplication {
                         false
                 }).is_some()
             }
-            types::FindBy::Tag(ref tag) => {
-                (0..base.windows.len()).into_iter().find(|i| if base.windows[*i].tag().is_some() && base.windows[*i].tag().unwrap() == Cow::Borrowed(tag.into()) 
+            types::FindBy::Tag(tag) => {
+                (0..base.windows.len()).into_iter().find(|i| if base.windows[*i].tag().is_some() && base.windows[*i].tag().unwrap() == Cow::Borrowed(tag) 
                     && base.windows[*i].as_any_mut().downcast_mut::<crate::window::Window>().unwrap().inner_mut().inner_mut().inner_mut().inner_mut().close(skip_callbacks) {
                         base.windows.remove(*i);
                         self.maybe_exit();
@@ -174,7 +174,7 @@ impl ApplicationInner for QtApplication {
                         false
                 }).is_some()
                 || 
-                (0..base.trays.len()).into_iter().find(|i| if base.trays[*i].tag().is_some() && base.trays[*i].tag().unwrap() == Cow::Borrowed(tag.into()) 
+                (0..base.trays.len()).into_iter().find(|i| if base.trays[*i].tag().is_some() && base.trays[*i].tag().unwrap() == Cow::Borrowed(tag) 
                     && base.trays[*i].as_any_mut().downcast_mut::<crate::tray::Tray>().unwrap().inner_mut().close(skip_callbacks) {
                         base.trays.remove(*i);
                         self.maybe_exit();
@@ -185,7 +185,7 @@ impl ApplicationInner for QtApplication {
             }
         }
     }
-    fn find_member_mut(&mut self, arg: types::FindBy) -> Option<&mut dyn controls::Member> {
+    fn find_member_mut<'a>(&'a mut self, arg: types::FindBy<'a>) -> Option<&'a mut dyn controls::Member> {
         let base = &mut unsafe { common::cast_qobject_mut::<Application>(&mut self.inner) }.unwrap().base;
         for window in base.windows.as_mut_slice() {
             match arg {
@@ -194,15 +194,15 @@ impl ApplicationInner for QtApplication {
                         return Some(window.as_member_mut());
                     }
                 }
-                types::FindBy::Tag(ref tag) => {
+                types::FindBy::Tag(tag) => {
                     if let Some(mytag) = window.tag() {
-                        if tag.as_str() == mytag {
+                        if tag == mytag {
                             return Some(window.as_member_mut());
                         }
                     }
                 }
             }
-            let found = controls::Container::find_control_mut(window.as_mut(), arg.clone()).map(|control| control.as_member_mut());
+            let found = controls::Container::find_control_mut(window.as_mut(), arg).map(|control| control.as_member_mut());
             if found.is_some() {
                 return found;
             }
@@ -210,14 +210,14 @@ impl ApplicationInner for QtApplication {
         for tray in base.trays.as_mut_slice() {
             let tray = &mut **tray;
             match arg {
-                types::FindBy::Id(ref id) => {
-                    if tray.id() == *id {
+                types::FindBy::Id(id) => {
+                    if tray.id() == id {
                         return Some(tray.as_member_mut());
                     }
                 }
-                types::FindBy::Tag(ref tag) => {
+                types::FindBy::Tag(tag) => {
                     if let Some(mytag) = tray.tag() {
-                        if tag.as_str() == mytag {
+                        if tag == mytag {
                             return Some(tray.as_member_mut());
                         }
                     }
@@ -226,7 +226,7 @@ impl ApplicationInner for QtApplication {
         }
         None
     }
-    fn find_member(&self, arg: types::FindBy) -> Option<&dyn controls::Member> {
+    fn find_member<'a>(&'a self, arg: types::FindBy<'a>) -> Option<&'a dyn controls::Member> {
         let base = & unsafe { common::cast_qobject::<Application>(&self.inner) }.unwrap().base;
         for window in base.windows.as_slice() {
             match arg {
@@ -235,15 +235,15 @@ impl ApplicationInner for QtApplication {
                         return Some(window.as_member());
                     }
                 }
-                types::FindBy::Tag(ref tag) => {
+                types::FindBy::Tag(tag) => {
                     if let Some(mytag) = window.tag() {
-                        if tag.as_str() == mytag {
+                        if tag == mytag {
                             return Some(window.as_member());
                         }
                     }
                 }
             }
-            let found = controls::Container::find_control(window.as_ref(), arg.clone()).map(|control| control.as_member());
+            let found = controls::Container::find_control(window.as_ref(), arg).map(|control| control.as_member());
             if found.is_some() {
                 return found;
             }
@@ -255,9 +255,9 @@ impl ApplicationInner for QtApplication {
                         return Some(tray.as_member());
                     }
                 }
-                types::FindBy::Tag(ref tag) => {
+                types::FindBy::Tag(tag) => {
                     if let Some(mytag) = tray.tag() {
-                        if tag.as_str() == mytag {
+                        if tag == mytag {
                             return Some(tray.as_member());
                         }
                     }
