@@ -314,7 +314,7 @@ impl HasOrientationInner for QtSplitted {
 }
 
 impl ContainerInner for QtSplitted {
-    fn find_control_mut(&mut self, arg: types::FindBy) -> Option<&mut dyn controls::Control> {
+    fn find_control_mut<'a>(&'a mut self, arg: types::FindBy<'a>) -> Option<&'a mut dyn controls::Control> {
         match arg {
             types::FindBy::Id(id) => {
                 if self.first().as_member().id() == id {
@@ -324,14 +324,14 @@ impl ContainerInner for QtSplitted {
                     return Some(self.second_mut());
                 }
             }
-            types::FindBy::Tag(ref tag) => {
+            types::FindBy::Tag(tag) => {
                 if let Some(mytag) = self.first.as_member().tag() {
-                    if tag.as_str() == mytag {
+                    if tag == mytag {
                         return Some(self.first_mut());
                     }
                 }
                 if let Some(mytag) = self.second.as_member().tag() {
-                    if tag.as_str() == mytag {
+                    if tag == mytag {
                         return Some(self.second_mut());
                     }
                 }
@@ -340,7 +340,7 @@ impl ContainerInner for QtSplitted {
 
         let self2: &mut QtSplitted = unsafe { mem::transmute(self as *mut QtSplitted) }; // bck is stupid
         if let Some(c) = self.first_mut().is_container_mut() {
-            let ret = c.find_control_mut(arg.clone());
+            let ret = c.find_control_mut(arg);
             if ret.is_some() {
                 return ret;
             }
@@ -353,7 +353,7 @@ impl ContainerInner for QtSplitted {
         }
         None
     }
-    fn find_control(&self, arg: types::FindBy) -> Option<&dyn controls::Control> {
+    fn find_control<'a>(&'a self, arg: types::FindBy<'a>) -> Option<&'a dyn controls::Control> {
         match arg {
             types::FindBy::Id(id) => {
                 if self.first().as_member().id() == id {
@@ -363,21 +363,21 @@ impl ContainerInner for QtSplitted {
                     return Some(self.second());
                 }
             }
-            types::FindBy::Tag(ref tag) => {
+            types::FindBy::Tag(tag) => {
                 if let Some(mytag) = self.first.as_member().tag() {
-                    if tag.as_str() == mytag {
+                    if tag == mytag {
                         return Some(self.first.as_ref());
                     }
                 }
                 if let Some(mytag) = self.second.as_member().tag() {
-                    if tag.as_str() == mytag {
+                    if tag == mytag {
                         return Some(self.second.as_ref());
                     }
                 }
             }
         }
         if let Some(c) = self.first().is_container() {
-            let ret = c.find_control(arg.clone());
+            let ret = c.find_control(arg);
             if ret.is_some() {
                 return ret;
             }

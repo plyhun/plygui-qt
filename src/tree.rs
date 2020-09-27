@@ -1,19 +1,26 @@
 use crate::common::{self, *};
 
-use qt_widgets::QListWidget;
-use qt_widgets::QListWidgetItem;
+use qt_widgets::QTreeWidget;
+use qt_widgets::QTreeWidgetItem;
 
-pub type List = AMember<AControl<AContainer<AAdapted<AList<QtList>>>>>;
+pub type Tree = AMember<AControl<AContainer<AAdapted<ATree<QtTree>>>>>;
+
+struct TreeNode {
+    node: adapter::Node,
+    root: Box<dyn controls::Control>,
+    widget: common::MaybeCppBox<QTreeWidgetItem>,
+    branches: Vec<TreeNode>,
+}
 
 #[repr(C)]
-pub struct QtList {
-    base: common::QtControlBase<List, QListWidget>,
-    items: Vec<(Box<dyn controls::Control>, common::MaybeCppBox<QListWidgetItem>)>,
+pub struct QtTree {
+    base: common::QtControlBase<Tree, QTreeWidget>,
+    items: Vec<TreeNode>,
     h_left_clicked: (Option<callbacks::OnItemClick>, QBox<SlotNoArgs>),
 }
-impl ItemClickableInner for QtList {
+impl ItemClickableInner for QtTree {
     fn item_click(&mut self, i: &[usize], item_view: &mut dyn controls::Control, _skip_callbacks: bool) {
-        let this = common::cast_qobject_to_uimember_mut::<List>(&mut self.base.as_qwidget()).unwrap();
+        let this = common::cast_qobject_to_uimember_mut::<Tree>(&mut self.base.as_qwidget()).unwrap();
         if let Some(ref mut callback) = self.h_left_clicked.0 {
             (callback.as_mut())(this, i, item_view)
         }
@@ -22,28 +29,29 @@ impl ItemClickableInner for QtList {
         self.h_left_clicked.0 = cb;
     }
 }
-impl QtList {
-    fn add_item_inner(&mut self, base: &mut MemberBase, i: usize) {
-        let (member, control, adapter, _) = unsafe { List::adapter_base_parts_mut(base) };
+impl QtTree {
+    fn add_item_inner(&mut self, base: &mut MemberBase, i: &[usize]) {
+        let (member, control, adapter, _) = unsafe { Tree::adapter_base_parts_mut(base) };
         let (pw, ph) = control.measured;
-        let this: &mut List = unsafe { utils::base_to_impl_mut(member) };
+        let this: &mut Tree = unsafe { utils::base_to_impl_mut(member) };
         
-        if let Some(mut item) = adapter.adapter.spawn_item_view(&[i], this) {
+        if let Some(mut item) = adapter.adapter.spawn_item_view(i, this) {
+        
             item.on_added_to_container(this, 0, 0, utils::coord_to_size(pw as i32) as u16, utils::coord_to_size(ph as i32) as u16);
-            self.items.insert(i, (item, common::MaybeCppBox::Some(unsafe { QListWidgetItem::new() })));
+            self.items.insert(i, (item, common::MaybeCppBox::Some(unsafe { QTreeWidgetItem::new() })));
             let (item, witem) = self.items.get_mut(i).unwrap();
             let widget = unsafe { Ptr::from_raw(common::cast_control_to_qwidget_mut(item.as_mut())) };        
             
             unsafe { 
                 witem.set_size_hint(&widget.size_hint());
-                self.base.widget.insert_item_int_q_list_widget_item(i as i32, witem.as_ptr()); 
+                self.base.widget.insert_item_int_q_tree_widget_item(i as i32, witem.as_ptr()); 
                 self.base.widget.set_item_widget(witem.as_ptr(), widget);
                 widget.show();
             }
         }
     }
-    fn remove_item_inner(&mut self, base: &mut MemberBase, i: usize) {
-        let this: &mut List = unsafe { utils::base_to_impl_mut(base) };
+    fn remove_item_inner(&mut self, base: &mut MemberBase, i: &[usize]) {
+        let this: &mut Tree = unsafe { utils::base_to_impl_mut(base) };
         self.items.remove(i).0.on_removed_from_container(this); 
         
         unsafe { 
@@ -53,10 +61,10 @@ impl QtList {
     }
 }
 
-impl<O: controls::List> NewListInner<O> for QtList {
+impl<O: controls::Tree> NewTreeInner<O> for QtTree {
     fn with_uninit(ptr: &mut mem::MaybeUninit<O>) -> Self {
-        let mut ll = QtList {
-            base: common::QtControlBase::with_params(unsafe { QListWidget::new_0a() }, event_handler::<O>),
+        let mut ll = QtTree {
+            base: common::QtControlBase::with_params(unsafe { QTreeWidget::new_0a() }, event_handler::<O>),
             items: Vec::new(),
             h_left_clicked: (None, unsafe { SlotNoArgs::new(NullPtr, move || {}) }), // dummy
         };
@@ -64,11 +72,11 @@ impl<O: controls::List> NewListInner<O> for QtList {
             let ptr = ptr as *const _ as u64;
             let obj = ll.base.widget.static_upcast::<QObject>().as_mut_raw_ptr();
             ll.h_left_clicked.1 = SlotNoArgs::new(NullPtr, move || {
-                let this = cast_qobject_to_uimember_mut::<List>(&mut *obj).unwrap();
+                let this = cast_qobject_to_uimember_mut::<Tree>(&mut *obj).unwrap();
                 let clicked = this.inner().inner().inner().inner().inner().base.widget.current_item();
                 let i = this.inner().inner().inner().inner().inner().base.widget.row(clicked);
                 let (ref mut clicked,_) = this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().items.get_mut(i as usize).unwrap();
-                let this = cast_qobject_to_uimember_mut::<List>(&mut *obj).unwrap();
+                let this = cast_qobject_to_uimember_mut::<Tree>(&mut *obj).unwrap();
                 if let Some(ref mut cb) = this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().h_left_clicked.0 {
                     let this = cast_qobject_to_uimember_mut::<O>(&mut *obj).unwrap();
                     (cb.as_mut())(this, &[i as usize], clicked.as_mut());
@@ -81,15 +89,15 @@ impl<O: controls::List> NewListInner<O> for QtList {
         ll
     }
 }
-impl ListInner for QtList {
-    fn with_adapter(adapter: Box<dyn types::Adapter>) -> Box<dyn controls::List> {
-        let mut b: Box<mem::MaybeUninit<List>> = Box::new_uninit();
+impl TreeInner for QtTree {
+    fn with_adapter(adapter: Box<dyn types::Adapter>) -> Box<dyn controls::Tree> {
+        let mut b: Box<mem::MaybeUninit<Tree>> = Box::new_uninit();
         let mut ab = AMember::with_inner(
             AControl::with_inner(
                 AContainer::with_inner(
                     AAdapted::with_inner(
-                        AList::with_inner(
-                            <Self as NewListInner<List>>::with_uninit(b.as_mut())
+                        ATree::with_inner(
+                            <Self as NewTreeInner<Tree>>::with_uninit(b.as_mut())
                         ),
                         adapter,
                         &mut b,
@@ -102,17 +110,17 @@ impl ListInner for QtList {
 	        b.as_mut_ptr().write(ab);
 	        b.assume_init()
         };
-        let (member, _, adapter, list) = unsafe { List::adapter_base_parts_mut(&mut bb.base) };
+        let (member, _, adapter, tree) = unsafe { Tree::adapter_base_parts_mut(&mut bb.base) };
 
         let mut i = 0;
         adapter.adapter.for_each(&mut (|indexes, _node| {
-            list.inner_mut().add_item_inner(member, i);
+            tree.inner_mut().add_item_inner(member, i);
             i += 1;
         }));
         bb
     }
 }
-impl AdaptedInner for QtList {
+impl AdaptedInner for QtTree {
 	fn on_item_change(&mut self, base: &mut MemberBase, change: adapter::Change) {
 		match change {
             adapter::Change::Added(at, _) => {
@@ -121,34 +129,34 @@ impl AdaptedInner for QtList {
             adapter::Change::Removed(at) => {
                 self.remove_item_inner(base, at[0]);
             },
-            adapter::Change::Edited(_, _) => {
+            adapter::Change::Edited(_,_) => {
             },
         }
         self.base.invalidate();
 	}
 }
-impl HasNativeIdInner for QtList {
+impl HasNativeIdInner for QtTree {
     type Id = common::QtId;
 
     fn native_id(&self) -> Self::Id {
         QtId::from(unsafe { self.base.widget.static_upcast::<QObject>().as_raw_ptr() } as *mut QObject)
     }
 }
-impl HasVisibilityInner for QtList {
+impl HasVisibilityInner for QtTree {
     fn on_visibility_set(&mut self, _: &mut MemberBase, value: types::Visibility) -> bool {
         self.base.set_visibility(value);
         self.base.invalidate()
     }
 }
-impl HasSizeInner for QtList {
+impl HasSizeInner for QtTree {
     fn on_size_set(&mut self, _: &mut MemberBase, (width, height): (u16, u16)) -> bool {
         unsafe { self.base.widget.set_fixed_size_2a(width as i32, height as i32); }
         true
     }
 }
-impl MemberInner for QtList {}
+impl MemberInner for QtTree {}
 
-impl Drawable for QtList {
+impl Drawable for QtTree {
     fn draw(&mut self, member: &mut MemberBase, control: &mut ControlBase) {
         self.base.draw(member, control);
 
@@ -188,7 +196,7 @@ impl Drawable for QtList {
     }
 }
 
-impl HasLayoutInner for QtList {
+impl HasLayoutInner for QtTree {
     fn on_layout_changed(&mut self, _base: &mut MemberBase) {
         self.base.invalidate();
     }
@@ -200,15 +208,15 @@ impl HasLayoutInner for QtList {
     }
 }
 
-impl ControlInner for QtList {
+impl ControlInner for QtTree {
     fn on_added_to_container(&mut self, member: &mut MemberBase, _: &mut ControlBase, _parent: &dyn controls::Container, _x: i32, _y: i32, pw: u16, ph: u16) {
-        let self2: &mut List = unsafe { utils::base_to_impl_mut(member) };
+        let self2: &mut Tree = unsafe { utils::base_to_impl_mut(member) };
         for (child,_) in self.items.iter_mut() {
             child.on_added_to_container(self2, 0, 0, pw, ph);
         }
     }
     fn on_removed_from_container(&mut self, member: &mut MemberBase, _control: &mut ControlBase, _parent: &dyn controls::Container) {
-        let self2: &mut List = unsafe { utils::base_to_impl_mut(member) };
+        let self2: &mut Tree = unsafe { utils::base_to_impl_mut(member) };
         for (child,_) in self.items.iter_mut() {
             child.on_removed_from_container(self2);
         }
@@ -228,14 +236,14 @@ impl ControlInner for QtList {
     }
     #[cfg(feature = "markup")]
     fn fill_from_markup(&mut self, member: &mut MemberBase, control: &mut ControlBase, mberarkup: &super::markup::Markup, registry: &mut super::markup::MarkupRegistry) {
-        use plygui_api::markup::MEMBER_TYPE_list;
+        use plygui_api::markup::MEMBER_TYPE_tree;
 
-        fill_from_markup_base!(self, markup, registry, List, [MEMBER_ID_layout_linear, MEMBER_TYPE_list]);
+        fill_from_markup_base!(self, markup, registry, Tree, [MEMBER_ID_layout_linear, MEMBER_TYPE_tree]);
         fill_from_markup_items!(self, markup, registry);
     }
 }
 
-impl ContainerInner for QtList {
+impl ContainerInner for QtTree {
     fn find_control_mut<'a>(&'a mut self, arg: types::FindBy<'a>) -> Option<&'a mut dyn controls::Control> {
         for (child,_) in self.items.as_mut_slice() {
             match arg {
@@ -289,13 +297,13 @@ impl ContainerInner for QtList {
         None
     }
 }
-impl Spawnable for QtList {
+impl Spawnable for QtTree {
     fn spawn() -> Box<dyn controls::Control> {
         Self::with_adapter(Box::new(types::imp::StringVecAdapter::<crate::imp::Text>::new())).into_control()
     }
 }
 /*
-impl Drop for QtList {
+impl Drop for QtTree {
 	fn drop(&mut self) {
 		for item in self.items {
             unsafe {
@@ -305,10 +313,10 @@ impl Drop for QtList {
 	}
 }
 */
-fn event_handler<O: controls::List>(object: &mut QObject, event: &mut QEvent) -> bool {
+fn event_handler<O: controls::Tree>(object: &mut QObject, event: &mut QEvent) -> bool {
     match unsafe { event.type_() } {
         QEventType::Resize => {
-            if let Some(this) = cast_qobject_to_uimember_mut::<List>(object) {
+            if let Some(this) = cast_qobject_to_uimember_mut::<Tree>(object) {
                 let size = unsafe { 
                     let size = Ref::from_raw(event).unwrap().static_downcast::<QResizeEvent>();
                     let size = (
@@ -322,7 +330,7 @@ fn event_handler<O: controls::List>(object: &mut QObject, event: &mut QEvent) ->
             }
         }
         QEventType::Destroy => {
-            if let Some(ll) = cast_qobject_to_uimember_mut::<List>(object) {
+            if let Some(ll) = cast_qobject_to_uimember_mut::<Tree>(object) {
             	for item in ll.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().items.as_mut_slice() {
 	                unsafe {
 	                    ptr::write(&mut item.1, common::MaybeCppBox::None);
