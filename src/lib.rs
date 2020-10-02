@@ -31,3 +31,7 @@ mod tree;
 
 default_markup_register_members!();
 default_pub_use!();
+
+pub use plygui_api::controls::*;
+pub use plygui_api::ids::*;
+pub use plygui_api::types::{*, self};

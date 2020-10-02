@@ -30,33 +30,86 @@ impl ItemClickableInner for QtTree {
     }
 }
 impl QtTree {
-    fn add_item_inner(&mut self, base: &mut MemberBase, i: &[usize]) {
+    fn add_item_inner(&mut self, base: &mut MemberBase, indexes: &[usize], node: &adapter::Node, y: &mut i32) {
         let (member, control, adapter, _) = unsafe { Tree::adapter_base_parts_mut(base) };
         let (pw, ph) = control.measured;
         let this: &mut Tree = unsafe { utils::base_to_impl_mut(member) };
         
-        if let Some(mut item) = adapter.adapter.spawn_item_view(i, this) {
+        let mut item = adapter.adapter.spawn_item_view(indexes, this);
         
-            item.on_added_to_container(this, 0, 0, utils::coord_to_size(pw as i32) as u16, utils::coord_to_size(ph as i32) as u16);
-            self.items.insert(i, (item, common::MaybeCppBox::Some(unsafe { QTreeWidgetItem::new() })));
-            let (item, witem) = self.items.get_mut(i).unwrap();
-            let widget = unsafe { Ptr::from_raw(common::cast_control_to_qwidget_mut(item.as_mut())) };        
-            
-            unsafe { 
-                witem.set_size_hint(&widget.size_hint());
-                self.base.widget.insert_item_int_q_tree_widget_item(i as i32, witem.as_ptr()); 
-                self.base.widget.set_item_widget(witem.as_ptr(), widget);
-                widget.show();
+        let mut items = &mut self.items;
+        let mut iter: Ptr<QTreeWidgetItem> = unsafe { Ptr::null() };
+        for i in 0..indexes.len() {
+            let index = indexes[i];
+            let end = i+1 >= indexes.len();
+            if end {
+                items.insert(index, TreeNode {
+                    node: node.clone(),
+                    root: {
+                        item.as_mut().map(|item| {
+                                item.set_layout_width(layout::Size::WrapContent);
+                                item.as_mut()
+                            }).unwrap().on_added_to_container(this, 0, *y, utils::coord_to_size(pw as i32) as u16, utils::coord_to_size(ph as i32) as u16);
+                        item.take().unwrap()
+                    },
+                    widget: common::MaybeCppBox::Some(unsafe { QTreeWidgetItem::new() }),
+                    branches: vec![]
+                });
+                let node = items.get_mut(index).unwrap();
+	            let widget = unsafe { Ptr::from_raw(common::cast_control_to_qwidget_mut(node.root.as_mut())) };
+	            
+	            unsafe { 
+	            	node.widget.set_child_indicator_policy(0);
+	                node.widget.set_size_hint(0, &widget.size_hint());
+	                if iter.is_null() {
+		                self.base.widget.insert_top_level_item(i as i32, node.widget.as_ptr()); 
+	                } else {
+		                iter.insert_child(i as i32, node.widget.as_ptr());
+	                }
+	                
+	                self.base.widget.set_item_widget(node.widget.as_ptr(), 0, widget);
+	                widget.show();
+	            }
+	            return;
+            } else {
+                iter = unsafe {
+                	if iter.is_null() {
+		                self.base.widget.top_level_item(index as i32)
+	                } else {
+		                iter.child(index as i32)
+	                }
+                };
+                items = &mut items[index].branches;
             }
         }
     }
-    fn remove_item_inner(&mut self, base: &mut MemberBase, i: &[usize]) {
+    fn remove_item_inner(&mut self, base: &mut MemberBase, indexes: &[usize]) {
         let this: &mut Tree = unsafe { utils::base_to_impl_mut(base) };
-        self.items.remove(i).0.on_removed_from_container(this); 
-        
-        unsafe { 
-            let item = self.base.widget.item(i as i32);
-            self.base.widget.remove_item_widget(item); 
+        let mut items = &mut self.items;
+        let mut iter: Ptr<QTreeWidgetItem> = unsafe { Ptr::null() };
+        for i in 0..indexes.len() {
+            let index = indexes[i];
+            if index >= (items.len()-1) {
+                let mut item = items.remove(index);
+                item.root.on_removed_from_container(this);
+                unsafe {
+                	self.base.widget.remove_item_widget(item.widget.as_ptr(), 0); 
+	                if iter.is_null() {
+		                self.base.widget.take_top_level_item(i as i32); 
+	                } else {
+		                iter.remove_child(item.widget.as_ptr());
+	                }
+                }
+            } else {
+                unsafe {
+                	iter = if iter.is_null() {
+		                self.base.widget.top_level_item(index as i32)
+	                } else {
+		                iter.child(index as i32)
+	                };
+                }
+                items = &mut items[index].branches;
+            }
         }
     }
 }
@@ -74,12 +127,25 @@ impl<O: controls::Tree> NewTreeInner<O> for QtTree {
             ll.h_left_clicked.1 = SlotNoArgs::new(NullPtr, move || {
                 let this = cast_qobject_to_uimember_mut::<Tree>(&mut *obj).unwrap();
                 let clicked = this.inner().inner().inner().inner().inner().base.widget.current_item();
-                let i = this.inner().inner().inner().inner().inner().base.widget.row(clicked);
-                let (ref mut clicked,_) = this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().items.get_mut(i as usize).unwrap();
+                let mut indexes = Vec::new();
+                
+                while {
+	                let i = if clicked.parent().is_null() {
+		                this.inner().inner().inner().inner().inner().base.widget.index_of_top_level_item(clicked)
+	                } else {
+		                clicked.parent().index_of_child(clicked)
+	                };
+	                indexes.push(i as usize);
+	                !clicked.parent().is_null()
+                } {}
+                
+                println!("clicked idx {:?}", indexes.as_slice());
+                
                 let this = cast_qobject_to_uimember_mut::<Tree>(&mut *obj).unwrap();
                 if let Some(ref mut cb) = this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().h_left_clicked.0 {
                     let this = cast_qobject_to_uimember_mut::<O>(&mut *obj).unwrap();
-                    (cb.as_mut())(this, &[i as usize], clicked.as_mut());
+                    //let clicked = cast_qobject_to_base_mut(clicked.static_upcast::<QObject>().unwrap().as_ref()).unwrap();
+                    //(cb.as_mut())(this, indexes.as_slice(), clicked.as_member_mut().is_control_mut().unwrap());
                 }
             });
             ll.base.widget.item_clicked().connect(&ll.h_left_clicked.1);
@@ -112,22 +178,32 @@ impl TreeInner for QtTree {
         };
         let (member, _, adapter, tree) = unsafe { Tree::adapter_base_parts_mut(&mut bb.base) };
 
-        let mut i = 0;
-        adapter.adapter.for_each(&mut (|indexes, _node| {
-            tree.inner_mut().add_item_inner(member, i);
-            i += 1;
+        let mut y = 0;
+        adapter.adapter.for_each(&mut (|indexes, node| {
+            tree.inner_mut().add_item_inner(member, indexes, node, &mut y);
         }));
         bb
     }
 }
 impl AdaptedInner for QtTree {
 	fn on_item_change(&mut self, base: &mut MemberBase, change: adapter::Change) {
-		match change {
-            adapter::Change::Added(at, _) => {
-                self.add_item_inner(base, at[0]);
+		let mut y = 0;
+        {
+            fn yadder(level: &[TreeNode], y: &mut i32) {
+                for item in level {
+                    let (_, yy) = item.root.size();
+                    *y += yy as i32;
+                    yadder(item.branches.as_slice(), y);
+                }
+            };
+            yadder(self.items.as_slice(), &mut y);        
+        }
+        match change {
+            adapter::Change::Added(at, ref node) => {
+                self.add_item_inner(base, at, node, &mut y);
             },
             adapter::Change::Removed(at) => {
-                self.remove_item_inner(base, at[0]);
+                self.remove_item_inner(base, at);
             },
             adapter::Change::Edited(_,_) => {
             },
@@ -211,14 +287,14 @@ impl HasLayoutInner for QtTree {
 impl ControlInner for QtTree {
     fn on_added_to_container(&mut self, member: &mut MemberBase, _: &mut ControlBase, _parent: &dyn controls::Container, _x: i32, _y: i32, pw: u16, ph: u16) {
         let self2: &mut Tree = unsafe { utils::base_to_impl_mut(member) };
-        for (child,_) in self.items.iter_mut() {
-            child.on_added_to_container(self2, 0, 0, pw, ph);
+        for node in self.items.iter_mut() {
+            //child.on_added_to_container(self2, 0, 0, pw, ph);
         }
     }
     fn on_removed_from_container(&mut self, member: &mut MemberBase, _control: &mut ControlBase, _parent: &dyn controls::Container) {
         let self2: &mut Tree = unsafe { utils::base_to_impl_mut(member) };
-        for (child,_) in self.items.iter_mut() {
-            child.on_removed_from_container(self2);
+        for node in self.items.iter_mut() {
+            //child.on_removed_from_container(self2);
         }
     }
 
@@ -245,56 +321,70 @@ impl ControlInner for QtTree {
 
 impl ContainerInner for QtTree {
     fn find_control_mut<'a>(&'a mut self, arg: types::FindBy<'a>) -> Option<&'a mut dyn controls::Control> {
-        for (child,_) in self.items.as_mut_slice() {
-            match arg {
-                types::FindBy::Id(ref id) => {
-                    if child.as_member_mut().id() == *id {
-                        return Some(child.as_mut());
+        fn find_control_inner_mut<'a>(vec: &'a mut [TreeNode], arg: types::FindBy<'a>) -> Option<&'a mut dyn controls::Control> {
+            for child in vec {
+                match arg {
+                    types::FindBy::Id(id) => {
+                        if child.root.as_member_mut().id() == id {
+                            return Some(child.root.as_mut());
+                        }
                     }
-                }
-                types::FindBy::Tag(tag) => {
-                    if let Some(mytag) = child.as_member_mut().tag() {
-                        if tag == mytag {
-                            return Some(child.as_mut());
+                    types::FindBy::Tag(tag) => {
+                        if let Some(mytag) = child.root.as_member_mut().tag() {
+                            if tag == mytag {
+                                return Some(child.root.as_mut());
+                            }
                         }
                     }
                 }
-            }
-            if let Some(c) = child.is_container_mut() {
-                let ret = c.find_control_mut(arg.clone());
-                if ret.is_none() {
-                    continue;
+                if let Some(c) = child.root.is_container_mut() {
+                    let ret = c.find_control_mut(arg);
+                    if ret.is_some() {
+                        return ret;
+                    }
                 }
-                return ret;
+                let ret = find_control_inner_mut(child.branches.as_mut_slice(), arg);
+                if ret.is_some() {
+                    return ret;
+                }
             }
+            None
         }
-        None
+        
+        find_control_inner_mut(self.items.as_mut_slice(), arg)
     }
     fn find_control<'a>(&'a self, arg: types::FindBy<'a>) -> Option<&'a dyn controls::Control> {
-        for (child,_) in self.items.as_slice() {
-            match arg {
-                types::FindBy::Id(ref id) => {
-                    if child.as_member().id() == *id {
-                        return Some(child.as_ref());
+        fn find_control_inner<'a>(vec: &'a [TreeNode], arg: types::FindBy<'a>) -> Option<&'a dyn controls::Control> {
+            for child in vec {
+                match arg {
+                    types::FindBy::Id(id) => {
+                        if child.root.as_member().id() == id {
+                            return Some(child.root.as_ref());
+                        }
                     }
-                }
-                types::FindBy::Tag(tag) => {
-                    if let Some(mytag) = child.as_member().tag() {
-                        if tag == mytag {
-                            return Some(child.as_ref());
+                    types::FindBy::Tag(tag) => {
+                        if let Some(mytag) = child.root.as_member().tag() {
+                            if tag == mytag {
+                                return Some(child.root.as_ref());
+                            }
                         }
                     }
                 }
-            }
-            if let Some(c) = child.is_container() {
-                let ret = c.find_control(arg.clone());
-                if ret.is_none() {
-                    continue;
+                if let Some(c) = child.root.is_container() {
+                    let ret = c.find_control(arg);
+                    if ret.is_some() {
+                        return ret;
+                    }
                 }
-                return ret;
+                let ret = find_control_inner(child.branches.as_slice(), arg);
+                if ret.is_some() {
+                    return ret;
+                }
             }
+            None
         }
-        None
+        
+        find_control_inner(self.items.as_slice(), arg)
     }
 }
 impl Spawnable for QtTree {
@@ -333,7 +423,7 @@ fn event_handler<O: controls::Tree>(object: &mut QObject, event: &mut QEvent) ->
             if let Some(ll) = cast_qobject_to_uimember_mut::<Tree>(object) {
             	for item in ll.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().items.as_mut_slice() {
 	                unsafe {
-	                    ptr::write(&mut item.1, common::MaybeCppBox::None);
+	                    //ptr::write(&mut item.1, common::MaybeCppBox::None);
 	                }
             	}
             }
