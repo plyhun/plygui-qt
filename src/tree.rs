@@ -48,7 +48,7 @@ impl QtTree {
                     node: node.clone(),
                     root: {
                         item.as_mut().map(|item| {
-                                item.set_layout_width(layout::Size::WrapContent);
+                                item.set_layout_width(layout::Size::MatchParent);
                                 item.as_mut()
                             }).unwrap().on_added_to_container(this, 0, *y, utils::coord_to_size(pw as i32) as u16, utils::coord_to_size(ph as i32) as u16);
                         item.take().unwrap()
@@ -62,14 +62,14 @@ impl QtTree {
 	            unsafe { 
 	            	node.widget.set_child_indicator_policy(ChildIndicatorPolicy::DontShowIndicatorWhenChildless);
 	                node.widget.set_size_hint(0, &widget.size_hint());
+	                println!("{:?} / {:?}", widget.size_hint().width(), widget.size_hint().height());
 	                if iter.is_null() {
 		                self.base.widget.insert_top_level_item(index as i32, node.widget.as_ptr()); 
 	                } else {
 		                iter.insert_child(index as i32, node.widget.as_ptr());
-		                //node.widget.set_parent(iter);
 	                }
-	                
 	                self.base.widget.set_item_widget(node.widget.as_ptr(), 0, widget);
+	                //widget.set_parent(self.base.widget.static_upcast::<QObject>().as_ref().unwrap());
 	                widget.show();
 	            }
 	            return;
@@ -129,6 +129,7 @@ impl<O: controls::Tree> NewTreeInner<O> for QtTree {
             ll.h_left_clicked.1 = SlotNoArgs::new(NullPtr, move || {
                 let this = cast_qobject_to_uimember_mut::<Tree>(&mut *obj).unwrap();
                 let mut clicked = this.inner().inner().inner().inner().inner().base.widget.current_item();
+                let clicked_widget = this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().base.widget.item_widget(clicked, 0);
                 let mut indexes = Vec::new();
                 
                 while {
@@ -144,16 +145,14 @@ impl<O: controls::Tree> NewTreeInner<O> for QtTree {
 	                !no_parent
                 } {}
                 
-                println!("clicked idx {:?}", indexes.as_slice());
-                
                 let this = cast_qobject_to_uimember_mut::<Tree>(&mut *obj).unwrap();
-                let clicked = this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().base.widget.item_widget(clicked, 0);
                 if let Some(ref mut cb) = this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().h_left_clicked.0 {
                     let this = cast_qobject_to_uimember_mut::<O>(&mut *obj).unwrap();
-                    let clicked = cast_qobject_to_base_mut(&clicked.static_upcast::<QObject>().as_ref().unwrap()).unwrap();
+                    let clicked = cast_qobject_to_base_mut(&clicked_widget.static_upcast::<QObject>().as_ref().unwrap()).unwrap();
                     (cb.as_mut())(this, indexes.as_slice(), clicked.as_member_mut().is_control_mut().unwrap());
                 }
             });
+            ll.base.widget.set_header_hidden(true);
             ll.base.widget.item_clicked().connect(&ll.h_left_clicked.1);
             let qo = ll.base.widget.static_upcast::<QObject>();
             qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
@@ -443,10 +442,16 @@ fn event_handler<O: controls::Tree>(object: &mut QObject, event: &mut QEvent) ->
         }
         QEventType::Destroy => {
             if let Some(ll) = cast_qobject_to_uimember_mut::<Tree>(object) {
-            	for item in ll.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().items.as_mut_slice() {
-	                unsafe {
+            	fn destroy_inner(item: &mut TreeNode) {
+		            unsafe {
 	                    ptr::write(&mut item.widget, common::MaybeCppBox::None);
 	                }
+		            for child in item.branches.as_mut_slice() {
+		                destroy_inner(child);
+		            }
+		        }
+            	for item in ll.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().items.as_mut_slice() {
+	                destroy_inner(item);
             	}
             }
         }
