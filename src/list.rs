@@ -104,10 +104,8 @@ impl ListInner for QtList {
         };
         let (member, _, adapter, list) = unsafe { List::adapter_base_parts_mut(&mut bb.base) };
 
-        let mut i = 0;
         adapter.adapter.for_each(&mut (|indexes, _node| {
-            list.inner_mut().add_item_inner(member, i);
-            i += 1;
+            list.inner_mut().add_item_inner(member, indexes[0]);
         }));
         bb
     }
