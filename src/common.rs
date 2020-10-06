@@ -29,6 +29,7 @@ pub use plygui_api::external::image;
 
 lazy_static! {
     pub static ref PROPERTY: CString = CString::new("plygui").unwrap();
+    pub static ref PROPERTY_PARENT: CString = CString::new("plygui_parent").unwrap();
 }
 
 pub enum MaybeCppBox<T: CppDeletable> {
@@ -204,45 +205,47 @@ impl<T: controls::Control + Sized, Q: StaticUpcast<QWidget> + StaticUpcast<QObje
     }
     pub fn parent(&self) -> Option<&dyn controls::Member> {
         unsafe {
-            let qv = self.widget.static_upcast::<QWidget>().parent_widget().as_ptr().static_upcast::<QObject>().property(PROPERTY.as_ptr() as *const i8);
-            if qv.as_mut_raw_ptr().is_null() {
-                None
+            let mut qv = self.widget.static_upcast::<QWidget>().parent_widget().as_ptr().static_upcast::<QObject>().property(PROPERTY.as_ptr() as *const i8);
+            if qv.as_mut_raw_ptr().is_null() || qv.to_u_long_long_0a() == 0 {
+            	qv = self.widget.static_upcast::<QObject>().property(PROPERTY_PARENT.as_ptr() as *const i8);
+            }
+            if qv.as_mut_raw_ptr().is_null() || qv.to_u_long_long_0a() == 0 {
+            	None
             } else {
-                let ptr = qv.to_u_long_long_0a();
-                Some(mem::transmute::<usize, &MemberBase>(ptr as usize).as_member())
+                Some(mem::transmute::<usize, &MemberBase>(qv.to_u_long_long_0a() as usize).as_member())
             }
         }
     }
     pub fn parent_mut(&mut self) -> Option<&mut dyn controls::Member> {
         unsafe {
-            let qv = self.widget.static_upcast::<QWidget>().parent_widget().static_upcast::<QObject>().property(PROPERTY.as_ptr() as *const i8);
-            if qv.as_raw_ptr().is_null() {
+            let mut qv = self.widget.static_upcast::<QWidget>().parent_widget().static_upcast::<QObject>().property(PROPERTY.as_ptr() as *const i8);
+            if qv.as_mut_raw_ptr().is_null() || qv.to_u_long_long_0a() == 0 {
+            	qv = self.widget.static_upcast::<QObject>().property(PROPERTY_PARENT.as_ptr() as *const i8);
+            }
+            if qv.as_raw_ptr().is_null() || qv.to_u_long_long_0a() == 0{
                 None
             } else {
-                let ptr = qv.to_u_long_long_0a();
-                Some(mem::transmute::<usize, &mut MemberBase>(ptr as usize).as_member_mut())
+                Some(mem::transmute::<usize, &mut MemberBase>(qv.to_u_long_long_0a() as usize).as_member_mut())
             }
         }
     }
     pub fn root(&self) -> Option<&dyn controls::Member> {
         unsafe {
             let qv = self.widget.static_upcast::<QWidget>().window().as_ptr().static_upcast::<QObject>().property(PROPERTY.as_ptr() as *const i8);
-            if qv.as_mut_raw_ptr().is_null() {
+            if qv.as_mut_raw_ptr().is_null() || qv.to_u_long_long_0a() == 0{
                 None
             } else {
-                let ptr = qv.to_u_long_long_0a();
-                Some(mem::transmute::<usize, &MemberBase>(ptr as usize).as_member())
+                Some(mem::transmute::<usize, &MemberBase>(qv.to_u_long_long_0a() as usize).as_member())
             }
         }
     }
     pub fn root_mut(&mut self) -> Option<&mut dyn controls::Member> {
         unsafe {
             let qv = self.widget.static_upcast::<QWidget>().window().static_upcast::<QObject>().property(PROPERTY.as_ptr() as *const i8);
-            if qv.as_raw_ptr().is_null() {
+            if qv.as_raw_ptr().is_null() || qv.to_u_long_long_0a() == 0 {
                 None
             } else {
-                let ptr = qv.to_u_long_long_0a();
-                Some(mem::transmute::<usize, &mut MemberBase>(ptr as usize).as_member_mut())
+                Some(mem::transmute::<usize, &mut MemberBase>(qv.to_u_long_long_0a() as usize).as_member_mut())
             }
         }
     }
