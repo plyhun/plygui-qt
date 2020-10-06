@@ -62,14 +62,13 @@ impl QtTree {
 	            unsafe { 
 	            	node.widget.set_child_indicator_policy(ChildIndicatorPolicy::DontShowIndicatorWhenChildless);
 	                node.widget.set_size_hint(0, &widget.size_hint());
-	                println!("{:?} / {:?}", widget.size_hint().width(), widget.size_hint().height());
 	                if iter.is_null() {
 		                self.base.widget.insert_top_level_item(index as i32, node.widget.as_ptr()); 
 	                } else {
 		                iter.insert_child(index as i32, node.widget.as_ptr());
 	                }
 	                self.base.widget.set_item_widget(node.widget.as_ptr(), 0, widget);
-	                //widget.set_parent(self.base.widget.static_upcast::<QObject>().as_ref().unwrap());
+	                widget.static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_u64(base as *mut MemberBase as u64));
 	                widget.show();
 	            }
 	            return;
@@ -95,7 +94,8 @@ impl QtTree {
                 let mut item = items.remove(index);
                 item.root.on_removed_from_container(this);
                 unsafe {
-                	self.base.widget.remove_item_widget(item.widget.as_ptr(), 0); 
+                	self.base.widget.item_widget(item.widget.as_ptr(), 0).static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_u64(0));
+	                self.base.widget.remove_item_widget(item.widget.as_ptr(), 0); 
 	                if iter.is_null() {
 		                self.base.widget.take_top_level_item(i as i32); 
 	                } else {
@@ -141,7 +141,7 @@ impl<O: controls::Tree> NewTreeInner<O> for QtTree {
 		                clicked = clicked.parent();
 		                i
 	                };
-	                indexes.push(i as usize);
+	                indexes.insert(0, i as usize);
 	                !no_parent
                 } {}
                 
