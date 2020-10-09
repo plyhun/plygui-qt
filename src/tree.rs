@@ -2,7 +2,7 @@ use crate::common::{self, *};
 
 use qt_widgets::QTreeWidget;
 use qt_widgets::QTreeWidgetItem;
-use qt_widgets::q_tree_widget_item::ChildIndicatorPolicy;
+//use qt_widgets::q_tree_widget_item::ChildIndicatorPolicy;
 
 pub type Tree = AMember<AControl<AContainer<AAdapted<ATree<QtTree>>>>>;
 
@@ -10,7 +10,15 @@ struct TreeNode {
     node: adapter::Node,
     root: Box<dyn controls::Control>,
     widget: common::MaybeCppBox<QTreeWidgetItem>,
+    //event_callback: QBox<CustomEventFilter>,
     branches: Vec<TreeNode>,
+}
+impl Drop for TreeNode {
+	fn drop(&mut self) {
+		unsafe {
+            ptr::write(&mut self.widget, common::MaybeCppBox::None);
+        }
+	}
 }
 
 #[repr(C)]
@@ -60,12 +68,20 @@ impl QtTree {
 	            let widget = unsafe { Ptr::from_raw(common::cast_control_to_qwidget_mut(node.root.as_mut())) };
 	            
 	            unsafe { 
-	            	node.widget.set_child_indicator_policy(ChildIndicatorPolicy::DontShowIndicatorWhenChildless);
+	            	//node.widget.set_child_indicator_policy(ChildIndicatorPolicy::DontShowIndicatorWhenChildless);
 	                node.widget.set_size_hint(0, &widget.size_hint());
 	                if iter.is_null() {
 		                self.base.widget.insert_top_level_item(index as i32, node.widget.as_ptr()); 
+		                match node.node {
+		                	adapter::Node::Branch(expanded) => { self.base.widget.set_item_expanded(node.widget.as_ptr(), expanded); },
+		                	_ => {}
+		                }
 	                } else {
 		                iter.insert_child(index as i32, node.widget.as_ptr());
+		                match node.node {
+		                	adapter::Node::Branch(expanded) => { iter.child(index as i32).set_expanded(expanded); },
+		                	_ => {}
+		                }
 	                }
 	                self.base.widget.set_item_widget(node.widget.as_ptr(), 0, widget);
 	                widget.static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_u64(base as *mut MemberBase as u64));
@@ -90,18 +106,18 @@ impl QtTree {
         let mut iter: Ptr<QTreeWidgetItem> = unsafe { Ptr::null() };
         for i in 0..indexes.len() {
             let index = indexes[i];
-            if index >= (items.len()-1) {
+            if i+1 >= indexes.len() {
                 let mut item = items.remove(index);
                 item.root.on_removed_from_container(this);
                 unsafe {
                 	self.base.widget.item_widget(item.widget.as_ptr(), 0).static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_u64(0));
 	                self.base.widget.remove_item_widget(item.widget.as_ptr(), 0); 
 	                if iter.is_null() {
-		                self.base.widget.take_top_level_item(i as i32); 
+		                self.base.widget.take_top_level_item(index as i32); 
 	                } else {
-		                iter.remove_child(item.widget.as_ptr());
+	                	iter.remove_child(item.widget.as_ptr());
 	                }
-                }
+	            }
             } else {
                 unsafe {
                 	iter = if iter.is_null() {
@@ -110,6 +126,49 @@ impl QtTree {
 		                iter.child(index as i32)
 	                };
                 }
+                items = &mut items[index].branches;
+            }
+        }
+    }
+    fn update_item_inner(&mut self, base: &mut MemberBase, indexes: &[usize], anode: &adapter::Node) {
+    	let mut items = &mut self.items;
+        let mut iter: Ptr<QTreeWidgetItem> = unsafe { Ptr::null() };
+        for i in 0..indexes.len() {
+            let index = indexes[i];
+            let end = i+1 >= indexes.len();
+            if end {
+                let node = items.get_mut(index).unwrap();
+	            let widget = unsafe { Ptr::from_raw(common::cast_control_to_qwidget_mut(node.root.as_mut())) };
+	            
+	            node.node = anode.clone();
+	            
+	            unsafe { 
+	            	//node.widget.set_child_indicator_policy(ChildIndicatorPolicy::DontShowIndicatorWhenChildless);
+	                node.widget.set_size_hint(0, &widget.size_hint());
+	                if iter.is_null() {
+		                match node.node {
+		                	adapter::Node::Branch(expanded) => { self.base.widget.set_item_expanded(node.widget.as_ptr(), expanded); },
+		                	_ => {}
+		                }
+	                } else {
+		                match node.node {
+		                	adapter::Node::Branch(expanded) => { iter.child(index as i32).set_expanded(expanded); },
+		                	_ => {}
+		                }
+	                }
+	                self.base.widget.set_item_widget(node.widget.as_ptr(), 0, widget);
+	                widget.static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_u64(base as *mut MemberBase as u64));
+	                widget.show();
+	            }
+	            return;
+            } else {
+                iter = unsafe {
+                	if iter.is_null() {
+		                self.base.widget.top_level_item(index as i32)
+	                } else {
+		                iter.child(index as i32)
+	                }
+                };
                 items = &mut items[index].branches;
             }
         }
@@ -210,7 +269,8 @@ impl AdaptedInner for QtTree {
             adapter::Change::Removed(at) => {
                 self.remove_item_inner(base, at);
             },
-            adapter::Change::Edited(_,_) => {
+            adapter::Change::Edited(at, ref node) => {
+            	self.update_item_inner(base, at, node);
             },
         }
         self.base.invalidate();
