@@ -24,7 +24,7 @@ pub use std::os::raw::c_void;
 pub use std::{cmp, marker, mem, ops, ptr, sync::mpsc};
 
 pub use plygui_api::sdk::*;
-pub use plygui_api::{callbacks, controls, defaults, ids, layout, types::{self, adapter}, utils};
+pub use plygui_api::{callbacks, controls, defaults, ids, layout, types::{self, adapter, matrix}, utils};
 pub use plygui_api::external::image;
 
 lazy_static! {

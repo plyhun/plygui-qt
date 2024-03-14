@@ -64,7 +64,7 @@ impl QtImage {
     
         let (w, h) = self.content.dimensions();
         let (iw, ih) = control.measured;
-        let mut raw = self.content.to_rgba().into_raw();
+        let mut raw = self.content.to_rgba8().into_raw();
 	    unsafe { 
 	        let img = QImage::from_uchar2_int_format(raw.as_mut_ptr(), w as i32, h as i32, Format::FormatRGBA8888);
             let pixmap = QPixmap::from_image_1a(img.as_ref());

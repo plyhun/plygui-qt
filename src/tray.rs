@@ -24,7 +24,7 @@ impl QtTray {
     		let status_size = 22; //self.tray.size() as u32; // TODO
     		i.resize(status_size, status_size, image::imageops::FilterType::Lanczos3)
     	};
-    	let mut raw = i.to_rgba().into_raw();
+    	let mut raw = i.to_rgba8().into_raw();
 	    let (w, h) = i.dimensions();
         let i = unsafe { QImage::from_uchar2_int_format(raw.as_mut_ptr(), w as i32, h as i32, Format::FormatRGBA8888) };
         unsafe { self.tray.set_icon(QIcon::from_q_pixmap(QPixmap::from_image_1a(i.as_ref()).as_ref()).as_ref()); }

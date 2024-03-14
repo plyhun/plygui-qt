@@ -259,7 +259,7 @@ impl AdaptedInner for QtTree {
                     *y += yy as i32;
                     yadder(item.branches.as_slice(), y);
                 }
-            };
+            }
             yadder(self.items.as_slice(), &mut y);        
         }
         match change {
