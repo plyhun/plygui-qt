@@ -60,7 +60,7 @@ impl MessageInner for QtMessage {
             message.message.set_icon(severity_to_message_icon(severity));
 
             if let Some(parent) = parent {
-                message.message.set_parent(common::cast_member_to_qwidget(parent).window());
+                message.message.set_parent_1a(common::cast_member_to_qwidget(parent).window());
                 message.message.set_window_modality(WindowModality::WindowModal);
             }
             message.actions.iter().for_each(|a| {

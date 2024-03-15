@@ -350,7 +350,10 @@ impl HasLayoutInner for QtTree {
 }
 
 impl ControlInner for QtTree {
-    fn on_added_to_container(&mut self, member: &mut MemberBase, _: &mut ControlBase, _parent: &dyn controls::Container, _x: i32, _y: i32, pw: u16, ph: u16) {
+    fn on_added_to_container(&mut self, member: &mut MemberBase, control: &mut ControlBase, _parent: &dyn controls::Container, x: i32, y: i32, pw: u16, ph: u16) {
+        control.coords = Some((x, y));
+        self.measure(member, control, pw, ph);
+
         let self2: &mut Tree = unsafe { utils::base_to_impl_mut(member) };
         
         fn on_added_inner(node: &mut TreeNode, self2: &mut Tree, pw: u16, ph: u16) {

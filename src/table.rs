@@ -2,7 +2,7 @@ use crate::{common::{self, matrix::*, *}, table};
 
 use qt_widgets::{QTableWidget, QTableWidgetItem};
 use qt_widgets::cpp_core::{CppBox, Ptr, NullPtr};
-use qt_core::QModelIndex;
+use qt_core::{AsReceiver, Receiver, QMargins, QModelIndex, Orientation, SlotOfIntInt, SlotOfInt, SlotOfOrientationIntInt, ScrollBarPolicy};
 
 pub type Table = AMember<AControl<AContainer<AAdapted<ATable<QtTable>>>>>;
 
@@ -10,7 +10,9 @@ pub type Table = AMember<AControl<AContainer<AAdapted<ATable<QtTable>>>>>;
 pub struct QtTable {
     base: common::QtControlBase<Table, QTableWidget>,
     data: Matrix<Ptr<QTableWidgetItem>>,
-    h_left_clicked: (Option<callbacks::OnItemClick>, QBox<SlotNoArgs>),
+    h_left_clicked: (Option<callbacks::OnItemClick>, QBox<SlotOfIntInt>, QBox<SlotOfInt>),
+    headers_moved_slot: QBox<SlotOfInt>,
+    headers_resized_slot: QBox<SlotOfInt>,
 }
 impl ItemClickableInner for QtTable {
     fn item_click(&mut self, i: &[usize], item_view: &mut dyn controls::Control, _skip_callbacks: bool) {
@@ -46,7 +48,6 @@ impl QtTable {
                 });
             });
         });
-        // TODO
         //unsafe { self.data.rows.remove(index).native.static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_u64(0)); }
         unsafe { self.base.widget.remove_row(index as i32); }
     }
@@ -56,19 +57,22 @@ impl QtTable {
         let (pw, ph) = control.measured;
         let width = utils::coord_to_size(pw as i32);
         let height = utils::coord_to_size(ph as i32);
-        unsafe { self.base.widget.insert_column(index as i32); }
+        unsafe { 
+            self.base.widget.insert_column(index as i32); 
+            //self.base.widget.horizontal_header_item(index as i32).set_text(QString::new().as_ref());
+        }
         let this: &mut Table = unsafe { utils::base_to_impl_mut(member) };
         let indices = &[index];
         let mut item = adapter.adapter.spawn_item_view(indices, this);
         let col = unsafe { self.base.widget.horizontal_header_item(index as i32) }; 
         item.as_mut().map(|item| {
             let widget = unsafe { Ptr::from_raw(common::cast_control_to_qwidget_mut(item.as_mut())) };
-            unsafe{ self.base.widget.horizontal_header().set_index_widget(QModelIndex::new().sibling_at_column(index as i32).as_ref(), widget); }
             item.set_layout_width(layout::Size::Exact(width));
             item.set_layout_height(self.data.default_row_height);
             item.on_added_to_container(this, 0, 0, width, height);
             unsafe { 
                 widget.static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_u64(parent_ptr));
+                widget.set_parent_1a(self.base.widget.horizontal_header().as_ptr());
                 widget.show(); 
             }
         }).or_else(|| adapter.adapter.alt_text_at(indices).map(|value| unsafe { col.set_text(&QString::from_std_str(value)) }));
@@ -95,6 +99,7 @@ impl QtTable {
         }
         let this: &mut Table = unsafe { utils::base_to_impl_mut(member) };
         adapter.adapter.spawn_item_view(&[x, y], this).map(|mut item| {
+            dbg!("cell at ", x, y);
             let item_widget = unsafe { Ptr::from_raw(common::cast_control_to_qwidget_mut(item.as_mut())) };
             unsafe {
                 item_widget.static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_u64(parent_ptr));
@@ -109,7 +114,7 @@ impl QtTable {
                 
                 row.cells.insert(x, Some(Cell {
                     control: Some(item),
-                    native: unsafe { widget.item_at_2a(x as i32, y as i32) },
+                    native: unsafe { widget.item_at_2a(y as i32, x as i32) },
                 }));
                 if row.cells.len() > x {
                     // facepalm
@@ -165,41 +170,42 @@ impl QtTable {
     }
     fn resize_row(&mut self, base: &ControlBase, index: usize, size: layout::Size, force: bool) {
         let (w, h) = base.measured;
-            let height = match size {
-                layout::Size::Exact(height) => height,
-                layout::Size::WrapContent => self.data.rows.iter()
-                        .flat_map(|row| row.cells.iter())
-                        .filter(|cell| cell.is_some())
-                        .map(|cell| cell.as_ref().unwrap().control.as_ref())
-                        .filter(|control| control.is_some())
-                        .map(|control| control.unwrap().size().1)
-                        .fold(0, |s, i| if s > i {s} else {i}),
-                layout::Size::MatchParent => base.measured.1 / self.data.cols.len() as u16,
-            };
-            self.data.cols.iter_mut().for_each(|col| {
-                col.control.as_mut().map(|control| {
-                    control.set_layout_height(layout::Size::Exact(height));
-                    control.measure(w, h);
-                    control.draw(None);
-                });
+        let height = match size {
+            layout::Size::Exact(height) => height,
+            layout::Size::WrapContent => self.data.rows.iter()
+                    .flat_map(|row| row.cells.iter())
+                    .filter(|cell| cell.is_some())
+                    .map(|cell| cell.as_ref().unwrap().control.as_ref())
+                    .filter(|control| control.is_some())
+                    .map(|control| control.unwrap().size().1)
+                    .fold(0, |s, i| if s > i {s} else {i}),
+            layout::Size::MatchParent => base.measured.1 / self.data.cols.len() as u16,
+        };
+        unsafe { self.base.widget.set_row_height(index as i32, height as i32); }
+        self.data.cols.iter_mut().for_each(|col| {
+            col.control.as_mut().map(|control| {
+                control.set_layout_height(layout::Size::Exact(height));
+                control.measure(w, h);
+                control.draw(None);
             });
-            self.data.rows.iter_mut().for_each(|row| {
-                row.height = size;
-                row.control.as_mut().map(|control| {
-                    control.set_layout_height(layout::Size::Exact(height));
-                    control.measure(w, h);
-                    control.draw(None);
-                });
-                row.cells.iter_mut().for_each(|cell| {
-                    cell.as_mut().map(|cell| {
-                        cell.control.as_mut().map(|control| {
-                            control.set_layout_height(layout::Size::Exact(height));
-                            control.measure(w, h);
-                            control.draw(None);
-                        });
+        });
+        self.data.rows.iter_mut().for_each(|row| {
+            row.height = size;
+            row.control.as_mut().map(|control| {
+                control.set_layout_height(layout::Size::Exact(height));
+                control.measure(w, h);
+                control.draw(None);
+            });
+            row.cells.iter_mut().for_each(|cell| {
+                cell.as_mut().map(|cell| {
+                    cell.control.as_mut().map(|control| {
+                        control.set_layout_height(layout::Size::Exact(height));
+                        control.measure(w, h);
+                        control.draw(None);
                     });
                 });
             });
+        });
         /*if force || self.data.default_row_height != size {
             
             if !force {
@@ -223,6 +229,7 @@ impl QtTable {
                     .fold(0, |s, i| if s > i {s} else {i}),
             layout::Size::MatchParent => w / self.data.cols.len() as u16,
         };
+        unsafe { self.base.widget.set_column_width(index as i32, width as i32); }
         self.data.column_at_mut(index).map(|col| {
             col.width = size;
             col.control.as_mut().map(|control| {
@@ -248,24 +255,79 @@ impl<O: controls::Table> NewTableInner<O> for QtTable {
         let mut ll = QtTable {
             base: common::QtControlBase::with_params(unsafe { QTableWidget::new_0a() }, event_handler::<O>),
             data: Default::default(),
-            h_left_clicked: (None, unsafe { SlotNoArgs::new(NullPtr, move || {}) }), // dummy
+            h_left_clicked: (
+                None, 
+                unsafe { SlotOfIntInt::new(NullPtr, move |_,_| {}) },
+                unsafe { SlotOfInt::new(NullPtr, move |_| {}) }
+            ),
+            headers_moved_slot: unsafe { SlotOfInt::new(NullPtr, move |_| {})},
+            headers_resized_slot: unsafe { SlotOfInt::new(NullPtr, move |_| {})},
         };
         unsafe {
             let ptr = ptr as *const _ as u64;
             let obj = ll.base.widget.static_upcast::<QObject>().as_mut_raw_ptr();
-            ll.h_left_clicked.1 = SlotNoArgs::new(NullPtr, move || {
+            ll.h_left_clicked.1 = SlotOfIntInt::new(NullPtr, move |row, col| {
                 let this = cast_qobject_to_uimember_mut::<Table>(&mut *obj).unwrap();
-                let clicked = this.inner().inner().inner().inner().inner().base.widget.current_item();
-                let i = &[clicked.column() as usize, clicked.row() as usize];
-                this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().data.cell_at_mut(i).and_then(|cell| cell.control.as_mut()).map(|mut control| {
+                this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().data.cell_at_mut(&[row as usize, col as usize]).and_then(|cell| cell.control.as_mut()).map(|mut control| {
                     let this = cast_qobject_to_uimember_mut::<Table>(&mut *obj).unwrap();
                     if let Some(ref mut cb) = this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().h_left_clicked.0 {
                         let this = cast_qobject_to_uimember_mut::<O>(&mut *obj).unwrap();
-                        (cb.as_mut())(this, i, control.as_control_mut());
+                        (cb.as_mut())(this, &[col as usize, row as usize], control.as_control_mut());
                     }
                 });
             });
-            ll.base.widget.item_clicked().connect(&ll.h_left_clicked.1);
+            ll.h_left_clicked.2 = SlotOfInt::new(NullPtr, move |col| {
+                let this = cast_qobject_to_uimember_mut::<Table>(&mut *obj).unwrap();
+                this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().data.column_at_mut(col as usize).and_then(|col| col.control.as_mut()).map(|mut control| {
+                    let this = cast_qobject_to_uimember_mut::<Table>(&mut *obj).unwrap();
+                    if let Some(ref mut cb) = this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().h_left_clicked.0 {
+                        let this = cast_qobject_to_uimember_mut::<O>(&mut *obj).unwrap();
+                        (cb.as_mut())(this, &[col as usize], control.as_control_mut());
+                    }
+                });
+            });
+            ll.headers_resized_slot = SlotOfInt::new(NullPtr, move |i| {
+                let this = cast_qobject_to_uimember_mut::<Table>(&mut *obj).unwrap();
+                let header = this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().base.widget.horizontal_header();
+                (header.visual_index(i)..header.count()).for_each(|j| {
+                    let logical = header.logical_index(j);
+                    this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().data.column_at_mut(logical as usize).and_then(|col| col.control.as_mut()).map(|col| {
+                        //col.as_control_mut().set_size(header.section_size(logical) as u16 - 2 - 2 - 1, header.height() as u16 - 2 - 2 - 1);
+                        let item_widget = unsafe { Ptr::from_raw(common::cast_control_to_qwidget_mut(col.as_control_mut())) };
+                        item_widget.set_geometry_4a(
+                            header.section_viewport_position(logical) + 2, 
+                            2, 
+                            header.section_size(logical) - 2 - 2 - 1, 
+                            header.height() - 2 - 2 - 1
+                        );
+                    });
+                });
+            });
+            ll.headers_moved_slot = SlotOfInt::new(NullPtr, move |logical| {
+                let this = cast_qobject_to_uimember_mut::<Table>(&mut *obj).unwrap();
+                let header = this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().base.widget.horizontal_header();
+                (0..header.count()).for_each(|j| {
+                    this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().data.column_at_mut(logical as usize).and_then(|col| col.control.as_mut()).map(|col| {
+                        
+                        let item_widget = unsafe { Ptr::from_raw(common::cast_control_to_qwidget_mut(col.as_control_mut())) };
+                        item_widget.set_geometry_4a(
+                            header.section_viewport_position(logical) + 2, 
+                            2, 
+                            header.section_size(logical) - 2 - 2 - 1, 
+                            header.height() - 2 - 2 - 1
+                        );
+                    });
+                });
+            });
+            ll.base.widget.cell_clicked().connect(&ll.h_left_clicked.1);
+            ll.base.widget.horizontal_header().section_clicked().connect(&ll.h_left_clicked.2);
+            ll.base.widget.horizontal_header().section_resized().connect(&ll.headers_resized_slot);
+            ll.base.widget.horizontal_header().section_moved().connect(&ll.headers_moved_slot);
+            ll.base.widget.vertical_header().hide();
+            ll.base.widget.set_vertical_scroll_bar_policy(ScrollBarPolicy::ScrollBarAlwaysOn);
+            ll.base.widget.set_horizontal_scroll_bar_policy(ScrollBarPolicy::ScrollBarAlwaysOn);
+            ll.base.widget.set_selection_mode(::qt_widgets::q_abstract_item_view::SelectionMode::NoSelection);
+            ll.base.widget.set_show_grid(false);
             let qo = ll.base.widget.static_upcast::<QObject>();
             qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
         }
@@ -435,11 +497,14 @@ impl HasLayoutInner for QtTable {
 
 impl ControlInner for QtTable {
     fn on_added_to_container(&mut self, member: &mut MemberBase, control: &mut ControlBase, _parent: &dyn controls::Container, x: i32, y: i32, pw: u16, ph: u16) {
+        control.coords = Some((x, y));
+        self.measure(member, control, pw, ph);
+
         let this: &mut Table = unsafe { utils::base_to_impl_mut(member) };
         self.data.cols.iter_mut().enumerate().for_each(|(index, col)| {
             //col.control.as_mut().map(|control| set_parent(control.as_mut(), Some(&parent)));
             col.control.as_mut().map(|mut control| control.on_added_to_container(this, 0, 0, pw, ph));
-            //this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().resize_column(control, index, col.width);
+            this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().resize_column(control, index, col.width);
         });
         self.data.rows.iter_mut().enumerate().for_each(|(index, row)| {
             this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().resize_row(control, index, row.height, false);
