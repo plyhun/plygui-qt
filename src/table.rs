@@ -2,7 +2,7 @@ use crate::{common::{self, matrix::*, *}, table};
 
 use qt_widgets::{QTableWidget, QTableWidgetItem};
 use qt_widgets::cpp_core::{CppBox, Ptr, NullPtr};
-use qt_core::{AsReceiver, Receiver, QMargins, QModelIndex, Orientation, SlotOfIntInt, SlotOfInt, SlotOfOrientationIntInt, ScrollBarPolicy};
+use qt_core::{AsReceiver, Orientation, QMargins, QModelIndex, QStringList, Receiver, ScrollBarPolicy, SlotOfInt, SlotOfIntInt, SlotOfOrientationIntInt};
 
 pub type Table = AMember<AControl<AContainer<AAdapted<ATable<QtTable>>>>>;
 
@@ -13,6 +13,7 @@ pub struct QtTable {
     h_left_clicked: (Option<callbacks::OnItemClick>, QBox<SlotOfIntInt>, QBox<SlotOfInt>),
     headers_moved_slot: QBox<SlotOfInt>,
     headers_resized_slot: QBox<SlotOfInt>,
+    headers_scrolled_slot: QBox<SlotOfInt>,
 }
 impl ItemClickableInner for QtTable {
     fn item_click(&mut self, i: &[usize], item_view: &mut dyn controls::Control, _skip_callbacks: bool) {
@@ -28,7 +29,11 @@ impl ItemClickableInner for QtTable {
 impl QtTable {
     fn add_row_inner(&mut self, base: &mut MemberBase, index: usize) -> Option<&mut Row<Ptr<QTableWidgetItem>>> {
         let (_, control, _, _) = unsafe { Table::adapter_base_parts_mut(base) };
-        unsafe { self.base.widget.insert_row(index as i32); }
+        unsafe {
+            if self.base.widget.row_count() <= index as i32 {
+                self.base.widget.insert_row(index as i32);
+            }
+        }
         let row = Row {
             cells: self.data.cols.iter_mut().map(|_| None).collect(),
             native: unsafe { self.base.widget.vertical_header_item(index as i32) },
@@ -57,14 +62,17 @@ impl QtTable {
         let (pw, ph) = control.measured;
         let width = utils::coord_to_size(pw as i32);
         let height = utils::coord_to_size(ph as i32);
-        unsafe { 
-            self.base.widget.insert_column(index as i32); 
-            //self.base.widget.horizontal_header_item(index as i32).set_text(QString::new().as_ref());
-        }
+        let mut col = unsafe {
+            let col = QTableWidgetItem::new();
+            if self.base.widget.column_count() <= index as i32 {
+                self.base.widget.insert_column(index as i32);
+            }
+            self.base.widget.set_horizontal_header_item(index as i32, &col);
+            col
+        };
         let this: &mut Table = unsafe { utils::base_to_impl_mut(member) };
         let indices = &[index];
-        let mut item = adapter.adapter.spawn_item_view(indices, this);
-        let col = unsafe { self.base.widget.horizontal_header_item(index as i32) }; 
+        let mut item: Option<Box<dyn controls::Control>> = adapter.adapter.spawn_item_view(indices, this);
         item.as_mut().map(|item| {
             let widget = unsafe { Ptr::from_raw(common::cast_control_to_qwidget_mut(item.as_mut())) };
             item.set_layout_width(layout::Size::Exact(width));
@@ -73,19 +81,26 @@ impl QtTable {
             unsafe { 
                 widget.static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_u64(parent_ptr));
                 widget.set_parent_1a(self.base.widget.horizontal_header().as_ptr());
-                widget.show(); 
+                widget.show();                 
             }
-        }).or_else(|| adapter.adapter.alt_text_at(indices).map(|value| unsafe { col.set_text(&QString::from_std_str(value)) }));
+        }).or_else(|| adapter.adapter.alt_text_at(indices).map(|value| unsafe { 
+            col.set_text(&QString::from_std_str(value)); 
+        }));
         self.data.cols.insert(index, Column {
             control: item,
-            native: col,
+            native: unsafe { col.as_ptr() },
             width: layout::Size::MatchParent,
         });
-        self.resize_column(control, index, self.data.cols[index].width);
+        self.resize_column(control, index, self.data.cols[index].width, true);
         self.data.rows.iter_mut().enumerate().for_each(|(row_index, row)| {
             row.cells.insert(index, None);
             this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().resize_row(control, row_index, row.height, true);
         });
+        unsafe {
+            let mut qsl = QStringList::new();
+            self.data.cols.iter().for_each(|_| qsl.append_q_string(&QString::from_std_str("")));
+            self.base.widget.set_horizontal_header_labels(&qsl);
+        }
     }
 	fn add_cell_inner(&mut self, base: &mut MemberBase, x: usize, y: usize) {
         let parent_ptr = base as *mut MemberBase as u64;
@@ -216,7 +231,7 @@ impl QtTable {
             self.data.row_at_mut(index).map(|mut row| row.height = row_height);
         }*/
     }
-    fn resize_column(&mut self, base: &ControlBase, index: usize, size: layout::Size) {
+    fn resize_column(&mut self, base: &ControlBase, index: usize, size: layout::Size, resize_qwidget: bool) {
         let (w, h) = base.measured;
         let mut width = match size {
             layout::Size::Exact(width) => width,
@@ -229,7 +244,9 @@ impl QtTable {
                     .fold(0, |s, i| if s > i {s} else {i}),
             layout::Size::MatchParent => w / self.data.cols.len() as u16,
         };
-        unsafe { self.base.widget.set_column_width(index as i32, width as i32); }
+        if resize_qwidget {
+            unsafe { self.base.widget.set_column_width(index as i32, width as i32); }
+        }
         self.data.column_at_mut(index).map(|col| {
             col.width = size;
             col.control.as_mut().map(|control| {
@@ -262,6 +279,7 @@ impl<O: controls::Table> NewTableInner<O> for QtTable {
             ),
             headers_moved_slot: unsafe { SlotOfInt::new(NullPtr, move |_| {})},
             headers_resized_slot: unsafe { SlotOfInt::new(NullPtr, move |_| {})},
+            headers_scrolled_slot: unsafe { SlotOfInt::new(NullPtr, move |_| {})},
         };
         unsafe {
             let ptr = ptr as *const _ as u64;
@@ -289,16 +307,21 @@ impl<O: controls::Table> NewTableInner<O> for QtTable {
             ll.headers_resized_slot = SlotOfInt::new(NullPtr, move |i| {
                 let this = cast_qobject_to_uimember_mut::<Table>(&mut *obj).unwrap();
                 let header = this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().base.widget.horizontal_header();
+                let margins = header.contents_margins();
                 (header.visual_index(i)..header.count()).for_each(|j| {
                     let logical = header.logical_index(j);
+                    /*{
+                        let (member, control, adapter, this) = unsafe { this.as_adapted_parts_mut() };
+                        this.inner_mut().resize_column(control, logical as usize, layout::Size::Exact((header.section_size(logical) - margins.left() - margins.right() - 11) as u16), false);
+                    }                 */   
                     this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().data.column_at_mut(logical as usize).and_then(|col| col.control.as_mut()).map(|col| {
                         //col.as_control_mut().set_size(header.section_size(logical) as u16 - 2 - 2 - 1, header.height() as u16 - 2 - 2 - 1);
                         let item_widget = unsafe { Ptr::from_raw(common::cast_control_to_qwidget_mut(col.as_control_mut())) };
                         item_widget.set_geometry_4a(
-                            header.section_viewport_position(logical) + 2, 
-                            2, 
-                            header.section_size(logical) - 2 - 2 - 1, 
-                            header.height() - 2 - 2 - 1
+                            header.section_viewport_position(logical) + margins.left() + 5, 
+                            margins.top(), 
+                            header.section_size(logical) - margins.left() - margins.right() - 11, 
+                            header.height() - margins.top() - margins.bottom() - 1
                         );
                     });
                 });
@@ -306,15 +329,41 @@ impl<O: controls::Table> NewTableInner<O> for QtTable {
             ll.headers_moved_slot = SlotOfInt::new(NullPtr, move |logical| {
                 let this = cast_qobject_to_uimember_mut::<Table>(&mut *obj).unwrap();
                 let header = this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().base.widget.horizontal_header();
+                let margins = header.contents_margins();
                 (0..header.count()).for_each(|j| {
-                    this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().data.column_at_mut(logical as usize).and_then(|col| col.control.as_mut()).map(|col| {
-                        
+                    /*{
+                        let (member, control, adapter, this) = unsafe { this.as_adapted_parts_mut() };
+                        this.inner_mut().resize_column(control, logical as usize, layout::Size::Exact((header.section_size(logical) - margins.left() - margins.right() - 11) as u16), false);
+                    } */                   
+                    this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().data.column_at_mut(logical as usize).and_then(|col| col.control.as_mut()).map(|col| {   
                         let item_widget = unsafe { Ptr::from_raw(common::cast_control_to_qwidget_mut(col.as_control_mut())) };
                         item_widget.set_geometry_4a(
-                            header.section_viewport_position(logical) + 2, 
-                            2, 
-                            header.section_size(logical) - 2 - 2 - 1, 
-                            header.height() - 2 - 2 - 1
+                            header.section_viewport_position(logical) + margins.left() + 2, 
+                            margins.top() + 2, 
+                            header.section_size(logical) - margins.left() - margins.right() - 5, 
+                            header.height() - margins.top() - margins.bottom() - 5
+                        );
+                    });
+                });
+            });
+            ll.headers_scrolled_slot = SlotOfInt::new(NullPtr, move |i| {
+                let this = cast_qobject_to_uimember_mut::<Table>(&mut *obj).unwrap();
+                let header = this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().base.widget.horizontal_header();
+                let margins = header.contents_margins();
+                (0..header.count()).for_each(|j| {
+                    let logical = header.logical_index(j);
+                    /*{
+                        let (member, control, adapter, this) = unsafe { this.as_adapted_parts_mut() };
+                        this.inner_mut().resize_column(control, logical as usize, layout::Size::Exact((header.section_size(logical) - margins.left() - margins.right() - 11) as u16), false);
+                    }                 */   
+                    this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().data.column_at_mut(logical as usize).and_then(|col| col.control.as_mut()).map(|col| {
+                        //col.as_control_mut().set_size(header.section_size(logical) as u16 - 2 - 2 - 1, header.height() as u16 - 2 - 2 - 1);
+                        let item_widget = unsafe { Ptr::from_raw(common::cast_control_to_qwidget_mut(col.as_control_mut())) };
+                        item_widget.set_geometry_4a(
+                            header.section_viewport_position(logical) + margins.left() + 5, 
+                            margins.top(), 
+                            header.section_size(logical) - margins.left() - margins.right() - 11, 
+                            header.height() - margins.top() - margins.bottom() - 1
                         );
                     });
                 });
@@ -328,6 +377,10 @@ impl<O: controls::Table> NewTableInner<O> for QtTable {
             ll.base.widget.set_horizontal_scroll_bar_policy(ScrollBarPolicy::ScrollBarAlwaysOn);
             ll.base.widget.set_selection_mode(::qt_widgets::q_abstract_item_view::SelectionMode::NoSelection);
             ll.base.widget.set_show_grid(false);
+            ll.base.widget.vertical_scroll_bar().slider_moved().connect(&ll.headers_scrolled_slot);
+            ll.base.widget.horizontal_scroll_bar().value_changed().connect(&ll.headers_scrolled_slot);
+            ll.base.widget.set_column_count(width as i32);
+            ll.base.widget.set_row_count(height as i32);
             let qo = ll.base.widget.static_upcast::<QObject>();
             qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
         }
@@ -370,7 +423,7 @@ impl TableInner for QtTable {
         unsafe { self.base.widget.horizontal_header().set_visible(visible); }
     }
     fn set_column_width(&mut self, _: &mut MemberBase, control: &mut ControlBase, _: &mut AdaptedBase, index: usize, size: layout::Size) {
-        self.resize_column(control, index, size)
+        self.resize_column(control, index, size, true)
     }
     fn set_row_height(&mut self, _: &mut MemberBase, control: &mut ControlBase, _: &mut AdaptedBase, index: usize, size: layout::Size) {
         self.resize_row(control, index, size, false)
@@ -504,7 +557,7 @@ impl ControlInner for QtTable {
         self.data.cols.iter_mut().enumerate().for_each(|(index, col)| {
             //col.control.as_mut().map(|control| set_parent(control.as_mut(), Some(&parent)));
             col.control.as_mut().map(|mut control| control.on_added_to_container(this, 0, 0, pw, ph));
-            this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().resize_column(control, index, col.width);
+            this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().resize_column(control, index, col.width, true);
         });
         self.data.rows.iter_mut().enumerate().for_each(|(index, row)| {
             this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().resize_row(control, index, row.height, false);
