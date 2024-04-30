@@ -27,6 +27,22 @@ impl ItemClickableInner for QtTable {
     }
 }
 impl QtTable {
+    fn redraw_column_labels(&mut self, base: &mut MemberBase) {
+        unsafe {
+            let mut qsl = QStringList::new();
+            let (_, _, adapter, _) = unsafe { Table::adapter_base_parts_mut(base) };
+        
+            self.data.cols.iter().enumerate().for_each(|(i, col)| {
+                col.control.as_ref().map_or_else(|| {
+                    qsl.append_q_string(&QString::from_std_str(adapter.adapter.alt_text_at(&[i]).unwrap_or("")));
+                }, |_| {
+                    qsl.append_q_string(&QString::from_std_str(""));
+                });
+                dbg!(qsl.size());
+            });
+            self.base.widget.set_horizontal_header_labels(&qsl);
+        }
+    }
     fn add_row_inner(&mut self, base: &mut MemberBase, index: usize) -> Option<&mut Row<Ptr<QTableWidgetItem>>> {
         let (_, control, _, _) = unsafe { Table::adapter_base_parts_mut(base) };
         unsafe {
@@ -83,9 +99,7 @@ impl QtTable {
                 widget.set_parent_1a(self.base.widget.horizontal_header().as_ptr());
                 widget.show();                 
             }
-        }).or_else(|| adapter.adapter.alt_text_at(indices).map(|value| unsafe { 
-            col.set_text(&QString::from_std_str(value)); 
-        }));
+        });
         self.data.cols.insert(index, Column {
             control: item,
             native: unsafe { col.as_ptr() },
@@ -96,11 +110,7 @@ impl QtTable {
             row.cells.insert(index, None);
             this.inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().resize_row(control, row_index, row.height, true);
         });
-        unsafe {
-            let mut qsl = QStringList::new();
-            self.data.cols.iter().for_each(|_| qsl.append_q_string(&QString::from_std_str("")));
-            self.base.widget.set_horizontal_header_labels(&qsl);
-        }
+        self.redraw_column_labels(member);
     }
 	fn add_cell_inner(&mut self, base: &mut MemberBase, x: usize, y: usize) {
         let parent_ptr = base as *mut MemberBase as u64;
@@ -114,7 +124,6 @@ impl QtTable {
         }
         let this: &mut Table = unsafe { utils::base_to_impl_mut(member) };
         adapter.adapter.spawn_item_view(&[x, y], this).map(|mut item| {
-            dbg!("cell at ", x, y);
             let item_widget = unsafe { Ptr::from_raw(common::cast_control_to_qwidget_mut(item.as_mut())) };
             unsafe {
                 item_widget.static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_u64(parent_ptr));
@@ -569,6 +578,8 @@ impl ControlInner for QtTable {
                         .map(|control| control.on_added_to_container(this, 0, 0, pw, ph));
                 });
         });
+        // We need this because of the race happening on adding multiple columns during initialization
+        self.redraw_column_labels(member);
     }
     fn on_removed_from_container(&mut self, member: &mut MemberBase, _control: &mut ControlBase, _parent: &dyn controls::Container) {
         let this: &mut Table = unsafe { utils::base_to_impl_mut(member) };
