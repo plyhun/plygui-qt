@@ -1,8 +1,9 @@
 use crate::{common::{self, matrix::*, *}, table};
 
-use qt_widgets::{QTableWidget, QTableWidgetItem};
+use qt_gui::{cpp_core::CastInto, QMouseEvent};
+use qt_widgets::{QHeaderView, QTableWidget, QTableWidgetItem};
 use qt_widgets::cpp_core::{CppBox, Ptr, NullPtr};
-use qt_core::{AsReceiver, Orientation, QMargins, QModelIndex, QStringList, Receiver, ScrollBarPolicy, SlotOfInt, SlotOfIntInt, SlotOfOrientationIntInt};
+use qt_core::{AsReceiver, Orientation, QMargins, QModelIndex, QStringList, Receiver, ScrollBarPolicy, SignalOfInt, SlotOfInt, SlotOfIntInt, SlotOfOrientationIntInt};
 
 pub type Table = AMember<AControl<AContainer<AAdapted<ATable<QtTable>>>>>;
 
@@ -14,6 +15,7 @@ pub struct QtTable {
     headers_moved_slot: QBox<SlotOfInt>,
     headers_resized_slot: QBox<SlotOfInt>,
     headers_scrolled_slot: QBox<SlotOfInt>,
+    headers_filter: QBox<CustomEventFilter>,
 }
 impl ItemClickableInner for QtTable {
     fn item_click(&mut self, i: &[usize], item_view: &mut dyn controls::Control, _skip_callbacks: bool) {
@@ -38,7 +40,6 @@ impl QtTable {
                 }, |_| {
                     qsl.append_q_string(&QString::from_std_str(""));
                 });
-                dbg!(qsl.size());
             });
             self.base.widget.set_horizontal_header_labels(&qsl);
         }
@@ -97,6 +98,7 @@ impl QtTable {
             unsafe { 
                 widget.static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_u64(parent_ptr));
                 widget.set_parent_1a(self.base.widget.horizontal_header().as_ptr());
+                widget.install_event_filter(&self.headers_filter);
                 widget.show();                 
             }
         });
@@ -286,6 +288,7 @@ impl<O: controls::Table> NewTableInner<O> for QtTable {
                 unsafe { SlotOfIntInt::new(NullPtr, move |_,_| {}) },
                 unsafe { SlotOfInt::new(NullPtr, move |_| {}) }
             ),
+            headers_filter: CustomEventFilter::new(headers_event_handler::<O>),
             headers_moved_slot: unsafe { SlotOfInt::new(NullPtr, move |_| {})},
             headers_resized_slot: unsafe { SlotOfInt::new(NullPtr, move |_| {})},
             headers_scrolled_slot: unsafe { SlotOfInt::new(NullPtr, move |_| {})},
@@ -673,6 +676,52 @@ impl Drop for QtTable {
 	}
 }
 */
+fn headers_event_handler<O: controls::Table>(object: &mut QObject, event: &mut QEvent) -> bool {
+    unsafe {
+        let control = common::cast_qobject_to_base_mut(object).unwrap().as_member_mut().is_control_mut().unwrap();
+        let control_id = control.id();
+        let parent = control.parent_mut().unwrap();
+        let col_index = parent.as_any_mut().downcast_mut::<Table>().unwrap().inner_mut().inner_mut().inner_mut().inner_mut().inner_mut()
+            .data.cols.iter().enumerate().filter(|(i, col)| col.control.as_ref().filter(|col| col.id() == control_id).is_some()).map(|(i, _)| i)
+            .next();
+        let widget = Ref::from_raw(object).unwrap().static_downcast::<QWidget>();
+        let header = widget.parent_widget().static_downcast::<QHeaderView>();
+        match event.type_() {
+            QEventType::MouseButtonRelease => {
+                col_index.map(|col_index| {
+                    let signal = SignalOfInt::new();
+                    signal.connect(header.section_clicked().as_receiver());
+                    signal.emit(col_index as i32);
+                });
+            }
+            QEventType::MouseButtonDblClick => {
+                /* // does not work 
+                let event = Ref::from_raw(event).unwrap().static_downcast::<QMouseEvent>();
+                let qtable = parent.as_any_mut().downcast_mut::<Table>().unwrap().inner_mut().inner_mut().inner_mut().inner_mut().inner_mut().base.widget.as_ref().unwrap();
+                if col_index.is_some() {
+                    let x = (0..qtable.horizontal_header().count()).into_iter().map(|i| qtable.horizontal_header().section_size(i)).fold(0, |s, i| s + i);
+                    event.local_pos().set_x(x as f64 + event.local_pos().x());
+                }
+                header.event(event);
+                */
+                col_index.map(|col_index| {
+                    let signal = SignalOfInt::new();
+                    signal.connect(header.section_double_clicked().as_receiver());
+                    signal.emit(col_index as i32);
+                });
+            }
+            QEventType::MouseMove => {
+                col_index.map(|col_index| {
+                    let signal = SignalOfInt::new();
+                    signal.connect(header.section_entered().as_receiver());
+                    signal.emit(col_index as i32);
+                });
+            }
+            _ => {}
+        }
+    }
+    false
+}
 fn event_handler<O: controls::Table>(object: &mut QObject, event: &mut QEvent) -> bool {
     match unsafe { event.type_() } {
         QEventType::Resize => {

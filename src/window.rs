@@ -51,7 +51,7 @@ impl<O: controls::Window> NewWindowInner<O> for QtWindow {
    		let mut w = QtWindow {
             window: unsafe { QMainWindow::new_0a() },
             child: None,
-            filter: CustomEventFilter::new(event_handler::<Window>),
+            filter: CustomEventFilter::new(event_handler::<O>),
             menu: if menu.is_some() { Vec::new() } else { Vec::with_capacity(0) },
             on_close: None,
             skip_callbacks: false,
