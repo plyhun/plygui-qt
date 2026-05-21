@@ -73,7 +73,7 @@ impl QtTree {
 	                if iter.is_null() {
 		                self.base.widget.insert_top_level_item(index as i32, node.widget.as_ptr()); 
 		                match node.node {
-		                	adapter::Node::Branch(expanded) => { self.base.widget.set_item_expanded(node.widget.as_ptr(), expanded); },
+		                	adapter::Node::Branch(expanded) => { node.widget.set_expanded(expanded); },
 		                	_ => {}
 		                }
 	                } else {
@@ -84,7 +84,7 @@ impl QtTree {
 		                }
 	                }
 	                self.base.widget.set_item_widget(node.widget.as_ptr(), 0, widget);
-	                widget.static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_u64(base as *mut MemberBase as u64));
+	                widget.static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_ulonglong(base as *mut MemberBase as u64));
 	                widget.show();
 	            }
 	            return;
@@ -110,7 +110,7 @@ impl QtTree {
                 let mut item = items.remove(index);
                 item.root.on_removed_from_container(this);
                 unsafe {
-                	self.base.widget.item_widget(item.widget.as_ptr(), 0).static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_u64(0));
+                	self.base.widget.item_widget(item.widget.as_ptr(), 0).static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_ulonglong(0));
 	                self.base.widget.remove_item_widget(item.widget.as_ptr(), 0); 
 	                if iter.is_null() {
 		                self.base.widget.take_top_level_item(index as i32); 
@@ -147,7 +147,7 @@ impl QtTree {
 	                node.widget.set_size_hint(0, &widget.size_hint());
 	                if iter.is_null() {
 		                match node.node {
-		                	adapter::Node::Branch(expanded) => { self.base.widget.set_item_expanded(node.widget.as_ptr(), expanded); },
+		                	adapter::Node::Branch(expanded) => { node.widget.set_expanded(expanded); },
 		                	_ => {}
 		                }
 	                } else {
@@ -157,7 +157,7 @@ impl QtTree {
 		                }
 	                }
 	                self.base.widget.set_item_widget(node.widget.as_ptr(), 0, widget);
-	                widget.static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_u64(base as *mut MemberBase as u64));
+	                widget.static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_ulonglong(base as *mut MemberBase as u64));
 	                widget.show();
 	            }
 	            return;
@@ -214,7 +214,7 @@ impl<O: controls::Tree> NewTreeInner<O> for QtTree {
             ll.base.widget.set_header_hidden(true);
             ll.base.widget.item_clicked().connect(&ll.h_left_clicked.1);
             let qo = ll.base.widget.static_upcast::<QObject>();
-            qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
+            qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::from_ulonglong(ptr));
         }
         ll
     }

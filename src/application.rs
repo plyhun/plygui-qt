@@ -53,7 +53,7 @@ impl<O: controls::Application> NewApplicationInner<O> for QtApplication {
         };
         let selfptr = u as *const _ as u64;
         unsafe {
-            a.inner.set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(selfptr));
+            a.inner.set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_ulonglong(selfptr));
         }
         a.set_frame_sleep(DEFAULT_FRAME_SLEEP_MS);
         let handler = move || {

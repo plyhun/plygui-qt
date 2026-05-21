@@ -29,7 +29,7 @@ impl<O: controls::LinearLayout> NewLinearLayoutInner<O> for QtLinearLayout {
 
             let ptr = ptr as *const _ as u64;
             let qo = ll.base.widget.static_upcast::<QObject>();
-            qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
+            qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::from_ulonglong(ptr));
         }
         ll
     }

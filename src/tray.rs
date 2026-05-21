@@ -89,7 +89,7 @@ impl<O: controls::Tray> NewTrayInner<O> for QtTray {
         };
         unsafe { 
             t.tray.set_tool_tip(&QString::from_std_str(title)); 
-            (t.tray.static_upcast::<QObject>()).set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(selfptr as u64));
+            (t.tray.static_upcast::<QObject>()).set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_ulonglong(selfptr as u64));
             let filter = t.filter.static_upcast::<QObject>();
             let qobject = t.tray.static_upcast::<QObject>();
             qobject.install_event_filter(filter);

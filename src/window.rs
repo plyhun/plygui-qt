@@ -1,6 +1,6 @@
 use crate::common::{self, *};
 
-use qt_widgets::QApplication;
+use qt_gui::QGuiApplication;
 use qt_widgets::QMainWindow;
 
 use std::borrow::Cow;
@@ -57,12 +57,12 @@ impl<O: controls::Window> NewWindowInner<O> for QtWindow {
             skip_callbacks: false,
         };
    		unsafe {
-            w.window.static_upcast::<QObject>().set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(selfptr as u64));
+            w.window.static_upcast::<QObject>().set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_ulonglong(selfptr as u64));
             w.window.set_window_title(&QString::from_std_str(&title));
             let (ww, hh) = match start_size {
                 types::WindowStartSize::Exact(w, h) => (w as i32, h as i32),
                 types::WindowStartSize::Fullscreen => {
-                    let screen = QApplication::desktop().screen_geometry();
+                    let screen = QGuiApplication::primary_screen().geometry();
                     (screen.width(), screen.height())
                 }
             };
@@ -93,7 +93,7 @@ impl<O: controls::Window> NewWindowInner<O> for QtWindow {
                         let id = w.menu.len();
                         let action = (action, slot_spawn(id, selfptr));
                         unsafe { 
-                            let qaction = menu_bar.add_action_1a(QString::from_std_str(label).as_ref());
+                            let qaction = menu_bar.add_action_q_string(QString::from_std_str(label).as_ref());
                             qaction.triggered().connect(&app.as_any().downcast_ref::<crate::application::Application>().unwrap().inner().queue);
                         }
                         w.menu.push(action);

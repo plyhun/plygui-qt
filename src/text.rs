@@ -35,7 +35,7 @@ impl<O: controls::Text> NewTextInner<O> for QtText {
         unsafe {
             let ptr = ptr as *const _ as u64;
             let qo = t.base.widget.static_upcast::<QObject>();
-            qo.set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
+            qo.set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_ulonglong(ptr));
         }
         t
     }

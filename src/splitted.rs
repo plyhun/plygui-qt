@@ -39,7 +39,7 @@ impl<O: controls::Splitted> NewSplittedInner<O> for QtSplitted {
             ll.base.widget.splitter_moved().connect(&ll.splitter_moved);
             {
                 let qo = ll.base.widget.static_upcast::<QObject>();
-                qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
+                qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::from_ulonglong(ptr));
             }
         }
         //ll.inner_mut().inner_mut().inner_mut().update_children_orientation();
@@ -110,9 +110,9 @@ impl QtSplitted {
     fn update_splitter(&mut self, member: &mut MemberBase, control: &mut ControlBase) {
         let (first, second) = self.children_sizes(member, control);
         unsafe {
-            let list = QListOfInt::new();
-            list.append_int(&(first as i32));
-            list.append_int(&(second as i32));
+            let list = QListOfInt::new_1a(2);
+            list.index_mut(0).replace(first as i32);
+            list.index_mut(1).replace(second as i32);
             self.base.widget.set_sizes(&list);
         }
         self.update_children_layout(member, control);

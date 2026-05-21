@@ -41,7 +41,7 @@ impl MessageInner for QtMessage {
         ));
         unsafe {
             let ptr = message.as_ref() as *const _ as u64;
-            (message.inner_mut().inner_mut().message.static_upcast::<QObject>()).set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
+            (message.inner_mut().inner_mut().message.static_upcast::<QObject>()).set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_ulonglong(ptr));
         }
         unsafe {
             let message = message.inner_mut().inner_mut();

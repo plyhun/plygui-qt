@@ -26,7 +26,7 @@ impl<O: controls::Image> NewImageInner<O> for QtImage {
         unsafe {
             let ptr = ptr as *const _ as u64;
             let qo = i.base.widget.static_upcast::<QObject>().as_ptr();
-            qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
+            qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::from_ulonglong(ptr));
             i.base.widget.set_alignment(AlignmentFlag::AlignCenter.into());
         }
         i

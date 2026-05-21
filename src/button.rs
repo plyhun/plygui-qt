@@ -58,7 +58,7 @@ impl<O: controls::Button> NewButtonInner<O> for QtButton {
         unsafe {
             btn.base.widget.released().connect(&btn.h_left_clicked.1);
             let qo: &QObject = &mut btn.base.widget.static_upcast();
-            qo.set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
+            qo.set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_ulonglong(ptr));
         }
         btn
     }

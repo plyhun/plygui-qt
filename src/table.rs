@@ -2,7 +2,7 @@ use crate::common::{self, matrix::*, *};
 
 use qt_widgets::{QHeaderView, QTableWidget, QTableWidgetItem};
 use qt_widgets::cpp_core::{Ptr, NullPtr};
-use qt_core::{AsReceiver, QStringList, ScrollBarPolicy, SignalOfInt, SlotOfInt, SlotOfIntInt};
+use qt_core::{AsReceiver, QListOfQString, ScrollBarPolicy, SignalOfInt, SlotOfInt, SlotOfIntInt, QAnyStringView};
 
 pub type Table = AMember<AControl<AContainer<AAdapted<ATable<QtTable>>>>>;
 
@@ -30,14 +30,16 @@ impl ItemClickableInner for QtTable {
 impl QtTable {
     fn redraw_column_labels(&mut self, base: &mut MemberBase) {
         unsafe {
-            let qsl = QStringList::new();
+            let qsl = QListOfQString::new_1a(self.data.cols.len() as i64);
             let (_, _, adapter, _) = unsafe { Table::adapter_base_parts_mut(base) };
         
             self.data.cols.iter().enumerate().for_each(|(i, col)| {
                 col.control.as_ref().map_or_else(|| {
-                    qsl.append_q_string(&QString::from_std_str(adapter.adapter.alt_text_at(&[i]).unwrap_or("")));
+                    qsl.index_mut(i as i64)
+                        .assign_1a(&QAnyStringView::from_q_string(&QString::from_std_str(adapter.adapter.alt_text_at(&[i]).unwrap_or(""))));
                 }, |_| {
-                    qsl.append_q_string(&QString::from_std_str(""));
+                    qsl.index_mut(i as i64)
+                        .assign_1a(&QAnyStringView::from_q_string(&QString::from_std_str("")));
                 });
             });
             self.base.widget.set_horizontal_header_labels(&qsl);
@@ -65,11 +67,11 @@ impl QtTable {
         self.data.row_at_mut(index).map(|row| {
             (0..row.cells.len()).into_iter().for_each(|y| {
                 row.cells.remove(y).map(|cell| unsafe {
-                    widget.cell_widget(index as i32, y as i32).static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_u64(0));
+                    widget.cell_widget(index as i32, y as i32).static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_ulonglong(0));
                 });
             });
         });
-        //unsafe { self.data.rows.remove(index).native.static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_u64(0)); }
+        //unsafe { self.data.rows.remove(index).native.static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_ulonglong(0)); }
         unsafe { self.base.widget.remove_row(index as i32); }
     }
 	fn add_column_inner(&mut self, base: &mut MemberBase, index: usize) {
@@ -95,7 +97,7 @@ impl QtTable {
             item.set_layout_height(self.data.default_row_height);
             item.on_added_to_container(this, 0, 0, width, height);
             unsafe { 
-                widget.static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_u64(parent_ptr));
+                widget.static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_ulonglong(parent_ptr));
                 widget.set_parent_1a(self.base.widget.horizontal_header().as_ptr());
                 widget.install_event_filter(&self.headers_filter);
                 widget.show();                 
@@ -127,7 +129,7 @@ impl QtTable {
         adapter.adapter.spawn_item_view(&[row, col], this).map(|mut item| {
             let item_widget = unsafe { Ptr::from_raw(common::cast_control_to_qwidget_mut(item.as_mut())) };
             unsafe {
-                item_widget.static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_u64(parent_ptr));
+                item_widget.static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_ulonglong(parent_ptr));
             }
             let widget = &self.base.widget;
             let width = unsafe { widget.column_width(col as i32) };
@@ -160,11 +162,11 @@ impl QtTable {
                     let widget = unsafe { Ptr::from_raw(common::cast_control_to_qwidget_mut(control.as_mut())) };
                     unsafe {
                         widget.hide();
-                        widget.static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_u64(0)); 
+                        widget.static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_ulonglong(0)); 
                     }
                 });
                 unsafe { 
-                    widget.cell_widget(row_index as i32, index as i32).static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_u64(0));
+                    widget.cell_widget(row_index as i32, index as i32).static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_ulonglong(0));
 	                widget.remove_cell_widget(row_index as i32, index as i32); 
                 }
                 cell.control = None;
@@ -177,7 +179,7 @@ impl QtTable {
                 let widget = unsafe { Ptr::from_raw(common::cast_control_to_qwidget_mut(column.as_mut())) };
                 unsafe {
                     widget.hide();
-                    widget.static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_u64(0)); 
+                    widget.static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_ulonglong(0)); 
                 }                
             });
             unsafe {
@@ -194,7 +196,7 @@ impl QtTable {
             row.cells.remove(x).map(|mut cell| {
                 cell.control.as_mut().map(|control| control.on_removed_from_container(this));
                 unsafe { 
-                    widget.cell_widget(y as i32, x as i32).static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_u64(0)); 
+                    widget.cell_widget(y as i32, x as i32).static_upcast::<QObject>().set_property(PROPERTY_PARENT.as_ptr() as *const i8, &QVariant::from_ulonglong(0)); 
                     widget.remove_cell_widget(y as i32, x as i32); 
                 }
                 cell.control = None;
@@ -411,7 +413,7 @@ impl<O: controls::Table> NewTableInner<O> for QtTable {
             ll.base.widget.set_column_count(width as i32);
             ll.base.widget.set_row_count(height as i32);
             let qo = ll.base.widget.static_upcast::<QObject>();
-            qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
+            qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::from_ulonglong(ptr));
         }
         ll
     }

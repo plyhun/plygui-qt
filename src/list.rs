@@ -76,7 +76,7 @@ impl<O: controls::List> NewListInner<O> for QtList {
             });
             ll.base.widget.item_clicked().connect(&ll.h_left_clicked.1);
             let qo = ll.base.widget.static_upcast::<QObject>();
-            qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
+            qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::from_ulonglong(ptr));
         }
         ll
     }

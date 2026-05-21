@@ -21,7 +21,7 @@ impl<O: controls::ProgressBar> NewProgressBarInner<O> for QtProgressBar {
             pb.base.widget.set_text_visible(false);
             let ptr = ptr as *const _ as u64;
             let qo = pb.base.widget.static_upcast::<QObject>();
-            qo.set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
+            qo.set_property(common::PROPERTY.as_ptr() as *const i8, &QVariant::from_ulonglong(ptr));
         }
         pb
     }

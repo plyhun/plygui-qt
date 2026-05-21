@@ -31,7 +31,7 @@ impl<O: controls::Frame> NewFrameInner<O> for QtFrame {
 
             let ptr = ptr as *mut _ as u64;
             let qo: &QObject = &fr.base.widget.as_ptr().static_upcast();
-            qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::from_u64(ptr));
+            qo.set_property(PROPERTY.as_ptr() as *const i8, &QVariant::from_ulonglong(ptr));
         }
         fr
     }

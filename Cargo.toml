@@ -10,10 +10,10 @@ path = "src/lib.rs"
 
 [dependencies]
 plygui-api = {version = "0.0.1", path = "../plygui/api"}
-qt_core = {version = "0.5.0"}
-qt_gui = {version = "0.5.0"}
-qt_widgets = {version = "0.5.0"}
-qt_core_custom_events = {version = "~0.2"}
+qt_core = {package = "qt_core_6", path = "../../ritual-workspace/qt_workspace/out/qt_core_6"}
+qt_gui = {package = "qt_gui_6", path = "../../ritual-workspace/qt_workspace/out/qt_gui_6"}
+qt_widgets = {package = "qt_widgets_6", path = "../../ritual-workspace/qt_workspace/out/qt_widgets_6"}
+qt_core_custom_events = {path = "../qt_core_custom_events"}
 lazy_static = {version = "~1.4"}
 libc = {version = "~0.2"}
 
